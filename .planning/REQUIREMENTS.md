@@ -25,19 +25,19 @@
 
 ### Cassette Storage
 
-- [ ] **CASS-01**: Cassettes are stored in a configurable directory (default: `tests/cassettes`)
-- [ ] **CASS-02**: Each cassette is a directory per test; each interaction is a numbered set of files (`000_query.sql`, `000_result.arrow`, `000_params.json`)
-- [ ] **CASS-03**: SQL is stored as human-readable pretty-printed `.sql` files (canonical dialect, pretty=True)
-- [ ] **CASS-04**: Results are stored as Arrow IPC `.arrow` files (`RecordBatchFileWriter`) preserving schema metadata
-- [ ] **CASS-05**: Parameters and driver options are stored as `.json` files (null when absent)
-- [ ] **CASS-06**: Cassette key is `(normalised_sql, parameters, driver_options)`; duplicate queries in a test use ordered-queue replay
+- [x] **CASS-01**: Cassettes are stored in a configurable directory (default: `tests/cassettes`)
+- [x] **CASS-02**: Each cassette is a directory per test; each interaction is a numbered set of files (`000_query.sql`, `000_result.arrow`, `000_params.json`)
+- [x] **CASS-03**: SQL is stored as human-readable pretty-printed `.sql` files (canonical dialect, pretty=True)
+- [x] **CASS-04**: Results are stored as Arrow IPC `.arrow` files (`RecordBatchFileWriter`) preserving schema metadata
+- [x] **CASS-05**: Parameters and driver options are stored as `.json` files (null when absent)
+- [x] **CASS-06**: Cassette key is `(normalised_sql, parameters, driver_options)`; duplicate queries in a test use ordered-queue replay
 
 ### SQL Normalisation
 
-- [ ] **NORM-01**: SQL is normalised via sqlglot before use as cassette key (handles keyword casing, whitespace, quote style)
-- [ ] **NORM-02**: Normalisation falls back to whitespace-only stripping when sqlglot cannot parse the SQL (no exception raised)
-- [ ] **NORM-03**: Dialect configurable at three levels: global config → per-test marker → `None` (sqlglot auto-detect)
-- [ ] **NORM-04**: Parameter placeholders (`?`, `%s`, `$1`) are preserved as-is in SQL keys (not normalised)
+- [x] **NORM-01**: SQL is normalised via sqlglot before use as cassette key (handles keyword casing, whitespace, quote style)
+- [x] **NORM-02**: Normalisation falls back to whitespace-only stripping when sqlglot cannot parse the SQL (no exception raised)
+- [x] **NORM-03**: Dialect configurable at three levels: global config → per-test marker → `None` (sqlglot auto-detect)
+- [x] **NORM-04**: Parameter placeholders (`?`, `%s`, `$1`) are preserved as-is in SQL keys (not normalised)
 
 ### Record Modes
 
@@ -108,16 +108,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROXY-04 | Phase 1 | Pending |
 | PROXY-05 | Phase 1 | Pending |
 | PROXY-06 | Phase 1 | Pending |
-| CASS-01 | Phase 2 | Pending |
-| CASS-02 | Phase 2 | Pending |
-| CASS-03 | Phase 2 | Pending |
-| CASS-04 | Phase 2 | Pending |
-| CASS-05 | Phase 2 | Pending |
-| CASS-06 | Phase 2 | Pending |
-| NORM-01 | Phase 2 | Pending |
-| NORM-02 | Phase 2 | Pending |
-| NORM-03 | Phase 2 | Pending |
-| NORM-04 | Phase 2 | Pending |
+| CASS-01 | Phase 2 | Complete |
+| CASS-02 | Phase 2 | Complete |
+| CASS-03 | Phase 2 | Complete |
+| CASS-04 | Phase 2 | Complete |
+| CASS-05 | Phase 2 | Complete |
+| CASS-06 | Phase 2 | Complete |
+| NORM-01 | Phase 2 | Complete |
+| NORM-02 | Phase 2 | Complete |
+| NORM-03 | Phase 2 | Complete |
+| NORM-04 | Phase 2 | Complete |
 | MODE-01 | Phase 2 | Pending |
 | MODE-02 | Phase 2 | Pending |
 | MODE-03 | Phase 2 | Pending |

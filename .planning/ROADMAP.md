@@ -73,5 +73,5 @@ Phases execute in numeric order: 1 -> 2 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Plugin Skeleton and Cursor Proxy | 0/? | Not started | - |
-| 2. Record/Replay Engine | 0/? | Not started | - |
+| 2. Record/Replay Engine | 2/4 | In Progress|  |
 | 3. Configuration, DX, and Integration Testing | 0/? | Not started | - |
