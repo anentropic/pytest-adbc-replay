@@ -181,6 +181,34 @@ class TestReplayModeNoDriver:
 
     def test_replay_mode_passes_without_adbc_driver(self, pytester: pytest.Pytester) -> None:
         """Tests using replay-only mode pass even with no ADBC driver installed."""
+        # Pre-populate a cassette so execute() finds data to replay
+        import pyarrow as pa
+
+        from pytest_adbc_replay._cassette_io import (
+            interaction_file_paths,
+            write_arrow_table,
+            write_params_json,
+            write_sql_file,
+        )
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        # The cassette path for pytester is derived from node ID:
+        # test_replay_mode_passes_without_adbc_driver.py::test_replay_without_driver
+        # -> tests/cassettes/test_replay_mode_passes_without_adbc_driver/test_replay_without_driver
+        cassette_dir = pytester.path / "tests" / "cassettes"
+        cassette_path = (
+            cassette_dir
+            / "test_replay_mode_passes_without_adbc_driver"
+            / "test_replay_without_driver"
+        )
+        cassette_path.mkdir(parents=True, exist_ok=True)
+
+        canonical = normalise_sql("SELECT 1")
+        sql_path, arrow_path, params_path = interaction_file_paths(cassette_path, 0)
+        write_sql_file(canonical, sql_path)
+        write_arrow_table(pa.table({"result": [1]}), arrow_path)
+        write_params_json(None, params_path)
+
         pytester.makepyfile(
             """
             import pytest
@@ -193,10 +221,10 @@ class TestReplayModeNoDriver:
                     request=request,
                 )
                 cursor = conn.cursor()
-                cursor.execute("SELECT 1")  # no real query -- replay stub
+                cursor.execute("SELECT 1")  # replays from cassette
                 results = cursor.fetchall()
-                # Phase 1: returns empty list (Phase 2 will return cassette data)
                 assert isinstance(results, list)
+                assert len(results) == 1
         """
         )
         result = pytester.runpytest("-v")

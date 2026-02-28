@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -43,7 +44,41 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 @pytest.fixture(scope="session")
-def adbc_replay(request: pytest.FixtureRequest) -> ReplaySession:
+def adbc_param_serialisers() -> dict[Any, dict[str, Any]] | None:
+    """
+    Session-scoped fixture providing custom parameter serialisers for ADBC replay.
+
+    Override this fixture in your conftest.py to register custom serialisers
+    for non-JSON-native parameter types (e.g. numpy arrays, custom date wrappers).
+
+    Returns:
+        A dict mapping Python types to serialiser dicts, or None to use defaults.
+        Each serialiser dict must have "serialise" and "type_tag" keys, and
+        optionally a "deserialise" key.
+
+    Example::
+
+        import pytest
+        import numpy as np
+        from pytest_adbc_replay import NO_DEFAULT_SERIALISERS
+
+        @pytest.fixture(scope="session")
+        def adbc_param_serialisers():
+            return {
+                np.int64: {
+                    "type_tag": "numpy.int64",
+                    "serialise": lambda v: {"value": int(v)},
+                },
+            }
+    """
+    return None
+
+
+@pytest.fixture(scope="session")
+def adbc_replay(
+    request: pytest.FixtureRequest,
+    adbc_param_serialisers: dict[Any, dict[str, Any]] | None,
+) -> ReplaySession:
     """
     Session-scoped fixture providing ADBC record/replay state.
 
@@ -64,4 +99,8 @@ def adbc_replay(request: pytest.FixtureRequest) -> ReplaySession:
     mode: str = request.config.getoption("--adbc-record", default="none")
     # cassette_dir: could be read from ini config in Phase 3
     cassette_dir = Path("tests/cassettes")
-    return ReplaySession(mode=mode, cassette_dir=cassette_dir)
+    return ReplaySession(
+        mode=mode,
+        cassette_dir=cassette_dir,
+        param_serialisers=adbc_param_serialisers,
+    )

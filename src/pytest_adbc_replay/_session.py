@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pytest_adbc_replay._cassette_path import node_id_to_cassette_path
 
@@ -24,9 +24,15 @@ class ReplaySession:
     is created via .wrap(), called from function-scoped user fixtures.
     """
 
-    def __init__(self, mode: str, cassette_dir: Path = _DEFAULT_CASSETTE_DIR) -> None:
+    def __init__(
+        self,
+        mode: str,
+        cassette_dir: Path = _DEFAULT_CASSETTE_DIR,
+        param_serialisers: dict[Any, dict[str, Any]] | None = None,
+    ) -> None:
         self.mode = mode
         self.cassette_dir = cassette_dir
+        self.param_serialisers = param_serialisers
 
     def wrap(
         self,
@@ -36,6 +42,7 @@ class ReplaySession:
         request: pytest.FixtureRequest | None = None,
         cassette_name: str | None = None,
         dialect: str | None = None,
+        param_serialisers: dict[Any, dict[str, Any]] | None = None,
     ) -> ReplayConnection:
         """
         Create a ReplayConnection for the current test.
@@ -50,6 +57,9 @@ class ReplaySession:
                 If provided, marker takes precedence over cassette_name.
             cassette_name: Override cassette name. If None, derived from node ID.
             dialect: SQL dialect for normalisation (sqlglot dialect string, e.g. "snowflake").
+            param_serialisers: Per-call override of custom parameter serialisers.
+                If None, falls back to the session-level param_serialisers set on
+                this ReplaySession (typically from the adbc_param_serialisers fixture).
 
         Returns:
             ReplayConnection ready for use in the test.
@@ -76,10 +86,16 @@ class ReplaySession:
         else:
             cassette_path = self.cassette_dir / "unknown"
 
+        # Per-call param_serialisers wins over session-level fallback
+        resolved_serialisers = (
+            param_serialisers if param_serialisers is not None else self.param_serialisers
+        )
+
         return ReplayConnection(
             driver_module_name=driver_module_name,
             db_kwargs=db_kwargs or {},
             mode=self.mode,
             cassette_path=cassette_path,
             dialect=resolved_dialect,
+            param_serialisers=resolved_serialisers,
         )

@@ -30,12 +30,14 @@ class ReplayConnection:
         mode: str,
         cassette_path: Path,
         dialect: str | None = None,
+        param_serialisers: dict[Any, dict[str, Any]] | None = None,
     ) -> None:
         self._driver_module_name = driver_module_name
         self._db_kwargs = db_kwargs
         self._mode = mode
         self._cassette_path = cassette_path
         self._dialect = dialect
+        self._param_serialisers = param_serialisers
         self._real_conn: Any = None  # adbc_driver_manager.dbapi.Connection or None
 
         if mode != "none":
@@ -58,6 +60,7 @@ class ReplayConnection:
             mode=self._mode,
             cassette_path=self._cassette_path,
             dialect=self._dialect,
+            param_serialisers=self._param_serialisers,
         )
 
     def close(self) -> None:
