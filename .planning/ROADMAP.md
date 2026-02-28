@@ -12,8 +12,8 @@ Build a pytest plugin that intercepts ADBC cursor calls, records query results t
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Plugin Skeleton and Cursor Proxy** - Installable plugin with discoverable fixtures, markers, CLI flag, and a ReplayCursor/ReplayConnection implementing the full ADBC cursor protocol
-- [ ] **Phase 2: Record/Replay Engine** - Cassette storage, SQL normalisation via sqlglot, and record mode state machine delivering working record/replay across all four modes
+- [x] **Phase 1: Plugin Skeleton and Cursor Proxy** - Installable plugin with discoverable fixtures, markers, CLI flag, and a ReplayCursor/ReplayConnection implementing the full ADBC cursor protocol
+- [x] **Phase 2: Record/Replay Engine** - Cassette storage, SQL normalisation via sqlglot, and record mode state machine delivering working record/replay across all four modes
 - [ ] **Phase 3: Configuration, DX, and Integration Testing** - pyproject.toml/pytest.ini configuration, developer experience polish, and pytester-based end-to-end validation
 
 ## Phase Details
@@ -72,6 +72,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Plugin Skeleton and Cursor Proxy | 0/? | Not started | - |
-| 2. Record/Replay Engine | 2/4 | In Progress|  |
+| 1. Plugin Skeleton and Cursor Proxy | ?/? | Complete | 2026-02-28 |
+| 2. Record/Replay Engine | 4/4 | Complete | 2026-02-28 |
 | 3. Configuration, DX, and Integration Testing | 0/? | Not started | - |
