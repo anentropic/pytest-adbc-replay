@@ -29,10 +29,14 @@ class ReplaySession:
         mode: str,
         cassette_dir: Path = _DEFAULT_CASSETTE_DIR,
         param_serialisers: dict[Any, dict[str, Any]] | None = None,
+        scrubber: object = None,
+        dialect: str | None = None,
     ) -> None:
         self.mode = mode
         self.cassette_dir = cassette_dir
         self.param_serialisers = param_serialisers
+        self.scrubber = scrubber  # stored; never called in v1
+        self.dialect = dialect  # global dialect fallback from ini config
 
     def wrap(
         self,
@@ -68,7 +72,8 @@ class ReplaySession:
         from pytest_adbc_replay._connection import ReplayConnection  # noqa: PLC0415
 
         resolved_name: str | None = cassette_name
-        resolved_dialect: str | None = dialect
+        # Priority: explicit wrap(dialect=...) arg > session global > None
+        resolved_dialect: str | None = dialect if dialect is not None else self.dialect
 
         if request is not None:
             # Read marker from test item — method marker wins over class marker
@@ -76,7 +81,8 @@ class ReplaySession:
             if marker is not None:
                 if marker.args:
                     resolved_name = str(marker.args[0])
-                resolved_dialect = marker.kwargs.get("dialect", dialect)
+                # Marker wins over both explicit arg and session global
+                resolved_dialect = marker.kwargs.get("dialect", resolved_dialect)
 
         # Derive cassette path
         if resolved_name is not None:

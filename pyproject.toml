@@ -26,6 +26,7 @@ adbc-replay = "pytest_adbc_replay.plugin"
 
 [dependency-groups]
 dev = [
+    "adbc-driver-sqlite>=1.0.0",
     "basedpyright>=1.38.0",
     "ipython>=9.10.0",
     "pdbpp>=0.12.0.post1",
