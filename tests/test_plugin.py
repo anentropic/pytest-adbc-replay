@@ -229,3 +229,151 @@ class TestReplayModeNoDriver:
         )
         result = pytester.runpytest("-v")
         result.assert_outcomes(passed=1)
+
+
+class TestIniConfig:
+    """CONF-01, CONF-02, CONF-03: pyproject.toml/pytest.ini configuration."""
+
+    def test_cassette_dir_from_ini(self, pytester: pytest.Pytester) -> None:
+        """CONF-01: adbc_cassette_dir ini key is used as cassette directory."""
+        pytester.makeini("[pytest]\nadbc_cassette_dir = custom_cassettes\n")
+        pytester.makepyfile(
+            """
+            from pathlib import Path
+
+            def test_cassette_dir(adbc_replay):
+                assert adbc_replay.cassette_dir == Path("custom_cassettes"), (
+                    f"Expected custom_cassettes, got {adbc_replay.cassette_dir!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_record_mode_from_ini(self, pytester: pytest.Pytester) -> None:
+        """CONF-02: adbc_record_mode ini key is used when --adbc-record not passed."""
+        pytester.makeini("[pytest]\nadbc_record_mode = once\n")
+        pytester.makepyfile(
+            """
+            def test_mode(adbc_replay):
+                assert adbc_replay.mode == "once", (
+                    f"Expected once, got {adbc_replay.mode!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_cli_overrides_ini(self, pytester: pytest.Pytester) -> None:
+        """CONF-02: CLI --adbc-record takes precedence over adbc_record_mode ini."""
+        pytester.makeini("[pytest]\nadbc_record_mode = once\n")
+        pytester.makepyfile(
+            """
+            def test_mode(adbc_replay):
+                assert adbc_replay.mode == "all", (
+                    f"Expected all (CLI override), got {adbc_replay.mode!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("--adbc-record=all", "-v")
+        result.assert_outcomes(passed=1)
+
+    def test_dialect_from_ini(self, pytester: pytest.Pytester) -> None:
+        """CONF-03: adbc_dialect ini key sets global SQL dialect on ReplaySession."""
+        pytester.makeini("[pytest]\nadbc_dialect = snowflake\n")
+        pytester.makepyfile(
+            """
+            def test_dialect(adbc_replay):
+                assert adbc_replay.dialect == "snowflake", (
+                    f"Expected snowflake, got {adbc_replay.dialect!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_empty_dialect_means_none(self, pytester: pytest.Pytester) -> None:
+        """CONF-03: No adbc_dialect in ini means dialect=None on ReplaySession."""
+        pytester.makepyfile(
+            """
+            def test_dialect(adbc_replay):
+                assert adbc_replay.dialect is None, (
+                    f"Expected None, got {adbc_replay.dialect!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+
+class TestReportHeader:
+    """DX-01: Record mode printed in pytest header output."""
+
+    def test_header_contains_mode_default(self, pytester: pytest.Pytester) -> None:
+        """Header shows 'adbc-replay: record mode = none' with default settings."""
+        pytester.makepyfile("def test_pass(): pass")
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+        assert "adbc-replay: record mode = none" in result.stdout.str(), (
+            f"Expected header line in stdout. Got:\n{result.stdout.str()}"
+        )
+
+    def test_header_reflects_ini_mode(self, pytester: pytest.Pytester) -> None:
+        """Header shows ini-configured mode when --adbc-record not passed."""
+        pytester.makeini("[pytest]\nadbc_record_mode = once\n")
+        pytester.makepyfile("def test_pass(): pass")
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+        assert "adbc-replay: record mode = once" in result.stdout.str(), (
+            f"Expected 'once' in header. Got:\n{result.stdout.str()}"
+        )
+
+    def test_header_reflects_cli_mode(self, pytester: pytest.Pytester) -> None:
+        """Header shows CLI-supplied mode (CLI wins over ini)."""
+        pytester.makeini("[pytest]\nadbc_record_mode = once\n")
+        pytester.makepyfile("def test_pass(): pass")
+        result = pytester.runpytest("--adbc-record=all", "-v")
+        result.assert_outcomes(passed=1)
+        assert "adbc-replay: record mode = all" in result.stdout.str(), (
+            f"Expected 'all' in header. Got:\n{result.stdout.str()}"
+        )
+
+
+class TestScrubberFixture:
+    """DX-02: adbc_scrubber fixture and ReplaySession.scrubber storage."""
+
+    def test_scrubber_is_none_by_default(self, pytester: pytest.Pytester) -> None:
+        """adbc_scrubber returns None by default; ReplaySession.scrubber is None."""
+        pytester.makepyfile(
+            """
+            def test_scrubber(adbc_replay):
+                assert adbc_replay.scrubber is None, (
+                    f"Expected None, got {adbc_replay.scrubber!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_scrubber_stored_when_overridden(self, pytester: pytest.Pytester) -> None:
+        """Overriding adbc_scrubber in conftest causes ReplaySession.scrubber to be set."""
+        pytester.makeconftest(
+            """
+            import pytest
+
+            @pytest.fixture(scope="session")
+            def adbc_scrubber():
+                def my_scrubber(data):
+                    return data
+                return my_scrubber
+        """
+        )
+        pytester.makepyfile(
+            """
+            def test_scrubber(adbc_replay):
+                assert adbc_replay.scrubber is not None, "scrubber should be set"
+                assert callable(adbc_replay.scrubber), "scrubber should be callable"
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
