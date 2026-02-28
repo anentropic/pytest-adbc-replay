@@ -7,11 +7,22 @@ authors = [
     { name = "Anentropic", email = "ego@anentropic.com" }
 ]
 requires-python = ">=3.11"
-dependencies = []
+classifiers = [
+    "Framework :: Pytest",
+]
+dependencies = [
+    "adbc-driver-manager>=1.0.0",
+    "pyarrow>=14.0",
+    "sqlglot>=23.0",
+    "pytest>=8.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.9.18,<1.0.0"]
 build-backend = "uv_build"
+
+[project.entry-points.pytest11]
+adbc-replay = "pytest_adbc_replay.plugin"
 
 [dependency-groups]
 dev = [
@@ -36,6 +47,13 @@ pythonVersion = "3.14"
 typeCheckingMode = "strict"
 include = ["src", "tests"]
 reportPrivateUsage = false
+# pyarrow and adbc-driver-manager do not ship type stubs
+reportMissingTypeStubs = false
+# pyarrow's API returns untyped values; suppress cascading unknown-type errors
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportUnknownParameterType = false
 
 [tool.ruff]
 target-version = "py311"
