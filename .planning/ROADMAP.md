@@ -59,11 +59,11 @@ Plans:
   2. The pytest header output includes the active record mode (e.g., "adbc-replay: record mode = none") so users can confirm which mode is active
   3. A scrubbing hook interface exists (callable slot) even though the implementation is deferred -- consuming code can register a no-op callback without error
   4. A pytester-based integration test exercises the full record-then-replay cycle against adbc-driver-sqlite, confirming the plugin works end-to-end with a real ADBC driver
-**Plans**: TBD
+**Plans**: 2
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01: Plugin ini config wiring, pytest_report_header, adbc_scrubber fixture, ReplaySession scrubber/dialect params
+- [ ] 03-02: Unit tests (TestIniConfig, TestReportHeader, TestScrubberFixture) and E2E integration test (adbc-driver-sqlite record-then-replay)
 
 ## Progress
 

@@ -48,14 +48,14 @@
 
 ### Configuration
 
-- [ ] **CONF-01**: User can configure cassette directory via `adbc_cassette_dir` in `pyproject.toml`/`pytest.ini`
-- [ ] **CONF-02**: User can configure default record mode via `adbc_record_mode` in `pyproject.toml`/`pytest.ini`
-- [ ] **CONF-03**: User can configure default SQL dialect via `adbc_dialect` in `pyproject.toml`/`pytest.ini`
+- [x] **CONF-01**: User can configure cassette directory via `adbc_cassette_dir` in `pyproject.toml`/`pytest.ini`
+- [x] **CONF-02**: User can configure default record mode via `adbc_record_mode` in `pyproject.toml`/`pytest.ini`
+- [x] **CONF-03**: User can configure default SQL dialect via `adbc_dialect` in `pyproject.toml`/`pytest.ini`
 
 ### Developer Experience
 
-- [ ] **DX-01**: Record mode is printed in pytest header output so users know what mode is active
-- [ ] **DX-02**: Plugin provides an empty scrubbing hook slot (interface design only — implementation deferred to v1.x)
+- [x] **DX-01**: Record mode is printed in pytest header output so users know what mode is active
+- [x] **DX-02**: Plugin provides an empty scrubbing hook slot (interface design only — implementation deferred to v1.x)
 
 ## v2 Requirements
 
@@ -122,11 +122,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MODE-02 | Phase 2 | Pending |
 | MODE-03 | Phase 2 | Pending |
 | MODE-04 | Phase 2 | Pending |
-| CONF-01 | Phase 3 | Pending |
-| CONF-02 | Phase 3 | Pending |
-| CONF-03 | Phase 3 | Pending |
-| DX-01 | Phase 3 | Pending |
-| DX-02 | Phase 3 | Pending |
+| CONF-01 | Phase 3 | Complete |
+| CONF-02 | Phase 3 | Complete |
+| CONF-03 | Phase 3 | Complete |
+| DX-01 | Phase 3 | Complete |
+| DX-02 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 31 total
