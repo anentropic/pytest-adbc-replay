@@ -42,6 +42,40 @@ stateDiagram-v2
     Check_cassette --> Record : mode=new_episodes, interaction absent
 ```
 
+## What mode controls
+
+The record mode controls two things: whether a database connection is opened at all, and what happens when a cassette interaction is not found.
+
+In `none` mode, the plugin never opens a database connection. No driver import is required, no credentials are checked, and no network call is made. The test either replays from the cassette or raises `CassetteMissError`. This is the only mode where the presence of a database driver does not matter.
+
+In all other modes (`once`, `new_episodes`, `all`), the plugin may open a database connection at some point during the test run. The wrapped connection passed to `adbc_replay.wrap()` is used when a live interaction is needed. If the connection requires credentials, those credentials must be available.
+
+## Mode and the cassette directory
+
+`once` and `none` both look at whether the cassette directory exists. The difference is what they do when it is absent:
+
+- `none`: cassette directory absent → `CassetteMissError`
+- `once`: cassette directory absent → record and create the directory
+
+This asymmetry is intentional. In `none` mode, a missing cassette is always an error — it means a test is running without its recorded data. In `once` mode, a missing cassette is expected on the first run and triggers recording.
+
+`new_episodes` and `all` operate at the interaction level rather than the directory level. `new_episodes` checks each individual interaction against the cassette; `all` ignores the cassette entirely and re-records unconditionally.
+
+## Relationship between modes and development stages
+
+The four modes correspond to the lifecycle of a test suite:
+
+| Stage | Mode |
+|---|---|
+| Writing a new test for the first time | `once` or `all` |
+| Extending an existing test with new queries | `new_episodes` |
+| Refreshing cassettes after data changes | `all` |
+| Normal development and CI | `none` |
+
+The most common path: record with `once` when writing a new test, then never change the mode again. `none` is the default and covers the vast majority of runs.
+
+The mode does not affect the cassette file format or the SQL normalisation process — it only controls whether the plugin reads from an existing cassette, writes a new one, or both.
+
 See [Run in CI without credentials](../how-to/ci-without-credentials.md) for a GitHub Actions job that uses replay mode.
 
 See the [Record Modes reference](../reference/record-modes.md) for the exact behaviour of each mode.

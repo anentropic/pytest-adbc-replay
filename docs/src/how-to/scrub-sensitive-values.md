@@ -39,6 +39,16 @@ Use a consistent placeholder across all runs. If your scrubber replaces the toke
 
 In practice, the easiest pattern is to scrub values that are only present at record time and not present at replay time (because in `none` mode, the real token is never used anyway).
 
+## Checking that scrubbing worked
+
+After recording, open the `.json` file in the cassette directory and confirm the sensitive value is not present:
+
+```bash
+cat tests/cassettes/my_test/000.json
+```
+
+The file should show the placeholder value (`"REDACTED"` in the example above), not the real token. If the real value is present, the scrubber is not being called — check that the fixture is named exactly `adbc_scrubber` and is in a `conftest.py` that pytest can discover.
+
 ## Related
 
 - [Fixtures reference](../reference/fixtures.md) — `adbc_scrubber` signature and scope
