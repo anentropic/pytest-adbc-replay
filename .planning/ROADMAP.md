@@ -122,11 +122,14 @@ Plans:
   3. The How-To section contains at least four task-oriented guides (CI setup, ini configuration, per-test cassette naming, multiple drivers)
   4. The Reference section lists every configuration key, CLI flag, fixture, marker, record mode, and public type — all accurate against the implementation
   5. The Explanation section covers cassette format rationale, SQL normalisation design, and record mode semantics in prose that reads naturally (no AI vocabulary, no em-dash overuse)
-**Plans**: TBD
+**Plans**: 5
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
+- [ ] 06-01-PLAN.md — MkDocs nav wiring, index.md Quick Start, verify mkdocs build passes
+- [ ] 06-02-PLAN.md — Tutorial: step-by-step DuckDB walkthrough from install to first replay
+- [ ] 06-03-PLAN.md — How-To guides: six task-oriented guides (CI, ini config, cassette names, multi-driver, scrubber, serialisers)
+- [ ] 06-04-PLAN.md — Reference pages: configuration, record modes, fixtures, markers, exceptions, cassette format
+- [ ] 06-05-PLAN.md — Explanation articles: cassette format rationale, SQL normalisation design, record mode semantics
 
 ### Phase 7: Publishing Automation
 **Goal**: Pushing a version tag triggers a verified PyPI release and GitHub Pages docs deployment; every push and PR runs the test suite across all supported Python versions
@@ -153,5 +156,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Configuration, DX, and Integration Testing | 2/2 | Complete | 2026-03-01 |
 | 4. Type Exports and PyPI Metadata | 1/1 | Complete   | 2026-03-01 |
 | 5. README and CHANGELOG | 1/1 | Complete | 2026-03-01 |
-| 6. MkDocs Documentation Site | 0/? | Not started | - |
+| 6. MkDocs Documentation Site | 0/5 | Not started | - |
 | 7. Publishing Automation | 0/? | Not started | - |
