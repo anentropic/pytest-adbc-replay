@@ -1,8 +1,8 @@
-
-name: PR Coverage Report
+name: PR
 
 on:
   pull_request:
+
 concurrency:
   group: pr-${{ github.ref }}
   cancel-in-progress: true
@@ -12,11 +12,14 @@ permissions:
   contents: read
 
 jobs:
+  test:
+    name: Test matrix
+    uses: ./.github/workflows/_test.yml
+
   coverage:
     name: Report test coverage
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
