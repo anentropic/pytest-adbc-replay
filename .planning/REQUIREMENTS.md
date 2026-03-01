@@ -69,7 +69,7 @@
 
 ### MkDocs Site
 
-- [ ] **DOC-05**: MkDocs documentation site with Material theme builds without errors and is navigable locally via `mkdocs serve`
+- [x] **DOC-05**: MkDocs documentation site with Material theme builds without errors and is navigable locally via `mkdocs serve`
 - [ ] **DOC-06**: Docs Tutorial section (diataxis: learning-oriented) walks a new user through recording their first cassette and replaying it end-to-end, step by step
 - [ ] **DOC-07**: Docs How-To section (diataxis: task-oriented) covers common tasks: configure via ini, run in CI without credentials, use multiple drivers, and handle record mode per test
 - [ ] **DOC-08**: Docs Reference section (diataxis: information-oriented) documents all configuration keys, CLI flags, fixtures, markers, record modes, and public API types
@@ -166,7 +166,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOC-02 | Phase 5 | Complete |
 | DOC-03 | Phase 5 | Complete |
 | DOC-04 | Phase 5 | Complete |
-| DOC-05 | Phase 6 | Pending |
+| DOC-05 | Phase 6 | Complete |
 | DOC-06 | Phase 6 | Pending |
 | DOC-07 | Phase 6 | Pending |
 | DOC-08 | Phase 6 | Pending |
