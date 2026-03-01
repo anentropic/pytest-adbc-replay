@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 ### v1.0.0 Docs and Publishing Polish
 
 - [x] **Phase 4: Type Exports and PyPI Metadata** - py.typed marker, public API __all__, and complete pyproject.toml classifiers/URLs/keywords (completed 2026-03-01)
-- [ ] **Phase 5: README and CHANGELOG** - README covering all user-facing features and a CHANGELOG for v1.0.0
+- [x] **Phase 5: README and CHANGELOG** - README covering all user-facing features and a CHANGELOG for v1.0.0 (completed 2026-03-01)
 - [ ] **Phase 6: MkDocs Documentation Site** - Full diataxis-structured documentation site (Tutorial, How-To, Reference, Explanation) with humanizer-polished prose
 - [ ] **Phase 7: Publishing Automation** - GitHub Actions CI matrix, publish-on-tag workflow, and GitHub Pages deployment
 
@@ -110,7 +110,7 @@ Plans:
 **Plans**: 1
 
 Plans:
-- [ ] 05-01-PLAN.md — Write README.md (install, quick-start, modes, config, cassette layout) and generate CHANGELOG.md via git-cliff with cliff.toml
+- [x] 05-01-PLAN.md — Write README.md (install, quick-start, modes, config, cassette layout) and generate CHANGELOG.md via git-cliff with cliff.toml
 
 ### Phase 6: MkDocs Documentation Site
 **Goal**: A full documentation site structured with the diataxis framework (Tutorial, How-To, Reference, Explanation) is built with MkDocs Material, contains complete content, and all prose reads as natural technical writing
@@ -152,6 +152,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 2. Record/Replay Engine | 4/4 | Complete | 2026-02-28 |
 | 3. Configuration, DX, and Integration Testing | 2/2 | Complete | 2026-03-01 |
 | 4. Type Exports and PyPI Metadata | 1/1 | Complete   | 2026-03-01 |
-| 5. README and CHANGELOG | 0/1 | Not started | - |
+| 5. README and CHANGELOG | 1/1 | Complete | 2026-03-01 |
 | 6. MkDocs Documentation Site | 0/? | Not started | - |
 | 7. Publishing Automation | 0/? | Not started | - |

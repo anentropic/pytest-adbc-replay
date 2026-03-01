@@ -62,10 +62,10 @@
 
 ### Documentation
 
-- [ ] **DOC-01**: User can read a README covering installation, quick-start, record modes (all four), and `adbc_replay` fixture usage with a real code example
-- [ ] **DOC-02**: README explains all ini/CLI configuration options (`adbc_cassette_dir`, `adbc_record_mode`, `adbc_dialect`, `--adbc-record`) with examples
-- [ ] **DOC-03**: README shows the cassette directory structure (`.sql`, `.arrow`, `.json` files) so users understand what gets committed to version control
-- [ ] **DOC-04**: CHANGELOG.md documents v1.0.0 with summary of all three development phases
+- [x] **DOC-01**: User can read a README covering installation, quick-start, record modes (all four), and `adbc_replay` fixture usage with a real code example
+- [x] **DOC-02**: README explains all ini/CLI configuration options (`adbc_cassette_dir`, `adbc_record_mode`, `adbc_dialect`, `--adbc-record`) with examples
+- [x] **DOC-03**: README shows the cassette directory structure (`.sql`, `.arrow`, `.json` files) so users understand what gets committed to version control
+- [x] **DOC-04**: CHANGELOG.md documents v1.0.0 with summary of all three development phases
 
 ### MkDocs Site
 
@@ -162,10 +162,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TYPE-01 | Phase 4 | Complete |
 | TYPE-02 | Phase 4 | Complete |
 | PUB-01 | Phase 4 | Complete |
-| DOC-01 | Phase 5 | Pending |
-| DOC-02 | Phase 5 | Pending |
-| DOC-03 | Phase 5 | Pending |
-| DOC-04 | Phase 5 | Pending |
+| DOC-01 | Phase 5 | Complete |
+| DOC-02 | Phase 5 | Complete |
+| DOC-03 | Phase 5 | Complete |
+| DOC-04 | Phase 5 | Complete |
 | DOC-05 | Phase 6 | Pending |
 | DOC-06 | Phase 6 | Pending |
 | DOC-07 | Phase 6 | Pending |
