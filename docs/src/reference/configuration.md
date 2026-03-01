@@ -35,6 +35,25 @@ The `--adbc-record` CLI flag takes precedence over `adbc_record_mode` for the du
 
 `adbc_dialect` accepts any dialect string that sqlglot recognises (`"snowflake"`, `"bigquery"`, `"duckdb"`, etc.). An empty string or `None` triggers sqlglot's auto-detect mode, which works for standard SQL.
 
+### Precedence
+
+`--adbc-record` (CLI flag) > `adbc_record_mode` (ini key)
+
+When both are set, the CLI flag wins for that session only.
+
+### Per-test dialect
+
+The `adbc_dialect` ini key sets a project-wide default. To override for one test, use the `dialect` argument on `@pytest.mark.adbc_cassette`:
+
+```python
+@pytest.mark.adbc_cassette("my_test", dialect="bigquery")
+def test_something(db_conn): ...
+```
+
+### Rootdir
+
+`adbc_cassette_dir` is resolved relative to the pytest rootdir, not the current working directory. Pytest determines rootdir from the location of `pyproject.toml`, `pytest.ini`, `setup.py`, or `setup.cfg`.
+
 ## Related
 
 - [Record Modes](record-modes.md) — behaviour of each mode value

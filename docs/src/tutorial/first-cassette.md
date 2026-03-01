@@ -115,6 +115,38 @@ tests/test_example.py .                                            [100%]
 
 Remove the DuckDB driver from your environment if you want to confirm: `pip uninstall adbc-driver-duckdb`. The test will still pass because the plugin does not use the driver at all in replay mode.
 
+## What if a test runs multiple queries?
+
+Each query in a test is stored as a separate interaction. If your test calls `cursor.execute()` twice, you get two sets of files: `000.sql`, `000.arrow`, `000.json` for the first query and `001.sql`, `001.arrow`, `001.json` for the second.
+
+On replay, the plugin returns interactions in the same order they were recorded. The test does not need to do anything differently — cassette lookup is order-based, not key-based within a test.
+
+## What is in the 000.arrow file?
+
+The `.arrow` file stores the full query result as an Arrow IPC file. You can read it with any Arrow library:
+
+```python
+import pyarrow as pa
+
+with pa.memory_map("tests/cassettes/first_query/000.arrow", "r") as source:
+    reader = pa.ipc.open_file(source)
+    table = reader.read_all()
+    print(table)
+```
+
+The table has the same schema (column names and types) as what the database returned. For the tutorial example, you would see a single column named `answer` of type `int64`.
+
+The Arrow format is the reason you do not need to worry about type fidelity on replay. The plugin returns the exact same Arrow record batch that the database produced, with no conversion through JSON or CSV.
+
+For the tutorial example, reading `000.arrow` would show:
+
+```
+pyarrow.Table
+answer: int64
+----
+answer: [[42]]
+```
+
 ## What's next
 
 The How-To Guides cover specific tasks you are likely to run into:
@@ -123,4 +155,4 @@ The How-To Guides cover specific tasks you are likely to run into:
 - [Configure the plugin via ini](../how-to/configure-via-ini.md) — set defaults in pyproject.toml or pytest.ini
 - [Name cassettes per test](../how-to/cassette-names.md) — when and how to control cassette directory names
 
-To understand why the plugin stores cassettes the way it does, read the [Explanation](../explanation/index.md) section.
+To understand why the plugin stores cassettes the way it does, read the [Explanation](../explanation/index.md) section — in particular, [Cassette format rationale](../explanation/cassette-format-rationale.md) and [Record mode semantics](../explanation/record-mode-semantics.md).

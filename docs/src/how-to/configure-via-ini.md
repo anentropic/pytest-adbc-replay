@@ -42,6 +42,28 @@ pytest --adbc-record=once
 
 The CLI flag takes precedence over the ini setting. Neither changes the other.
 
+## Changing the cassette directory
+
+If your tests are not in `tests/`, or you prefer a different layout, set `adbc_cassette_dir`:
+
+```toml
+[tool.pytest.ini_options]
+adbc_cassette_dir = "fixtures/cassettes"
+```
+
+The path is relative to the pytest rootdir. All cassette directories are created inside this base directory.
+
+## Setting the SQL dialect
+
+If all your tests run against one database, set the dialect globally:
+
+```toml
+[tool.pytest.ini_options]
+adbc_dialect = "snowflake"
+```
+
+Accepted values are any dialect string that sqlglot recognises. Use `""` (empty string) or omit the key to use sqlglot's auto-detect, which works for standard SQL. To override per test, use `@pytest.mark.adbc_cassette("name", dialect="bigquery")`.
+
 ## Related
 
 - [Record Modes reference](../reference/record-modes.md) — full description of each mode's behaviour

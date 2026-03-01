@@ -10,6 +10,8 @@ Developers reformat SQL. A query written as `SELECT * FROM foo WHERE id=1` might
 
 Whitespace and case differences are the most common source of spurious cassette misses. Normalisation removes them by reducing every query to a canonical form before computing the cassette key.
 
+SQL normalisation is also why the `.sql` cassette file contains pretty-printed SQL rather than the raw query string: the normalised form is both the key and the stored record. Two developers can independently reformat a query and still get a cassette match, because both reformatted versions normalise to the same canonical text.
+
 ## What sqlglot does
 
 sqlglot parses the SQL string into an abstract syntax tree and serialises it back to a canonical form. The output has:
@@ -22,6 +24,10 @@ sqlglot parses the SQL string into an abstract syntax tree and serialises it bac
 This canonicalised text is both the cassette key and the content of the `.sql` cassette file. The key and the human-readable file are the same string.
 
 When sqlglot cannot parse the SQL (vendor-specific syntax it does not recognise), the plugin falls back to whitespace-only normalisation — it collapses multiple spaces into one and strips leading/trailing whitespace, but does not change keywords or quoting. The plugin emits a `NormalisationWarning` to indicate this happened. The cassette may still work if the whitespace-normalised form is stable across runs, but the protection against keyword case differences is lost.
+
+sqlglot is a pure-Python SQL parser with no native extensions. It is not a database connection — it never runs queries. The plugin uses it only for parsing and re-serialising SQL strings at cassette record and replay time. This makes normalisation deterministic and portable: the same SQL string produces the same canonical form regardless of database state or version.
+
+See the [Exceptions reference](../reference/exceptions.md) for details on `NormalisationWarning`.
 
 ## Per-test dialect override
 
@@ -41,3 +47,35 @@ The `dialect` argument is passed directly to sqlglot. It accepts any dialect str
 The per-test override is stored only in the marker. It does not affect other tests or the global setting.
 
 See the [Configuration reference](../reference/configuration.md) for the `adbc_dialect` ini key.
+
+## What normalisation does not cover
+
+Normalisation removes whitespace and case differences. It does not:
+
+- Substitute parameter values — `SELECT * FROM foo WHERE id = ?` with parameter `42` is a different cassette key than the same query with parameter `99`, because parameters are recorded separately in the `.json` file
+- Detect semantic equivalence — `SELECT a, b FROM foo` and `SELECT b, a FROM foo` are different canonical forms even though they return the same data (column order matters for Arrow schema)
+- Handle dynamic SQL fragments — if your test constructs SQL by string concatenation with variable identifiers, the cassette key changes with the identifiers. Use query parameters for variable values instead.
+
+## Why sqlglot rather than a simpler approach
+
+The simplest normalisation is lowercasing the SQL and collapsing whitespace. This handles the most common cases, but it is fragile: `select "Foo" from bar` and `select "foo" from bar` become the same string, even though quoted identifiers are case-sensitive in most databases.
+
+sqlglot's AST round-trip approach is more reliable. It parses the SQL into a structured representation where keywords, identifiers, and literals are distinct nodes. The canonical serialisation applies consistent rules to each node type — keywords uppercase, identifiers in their parsed form, literals unchanged. The result is a canonical string that reflects SQL structure rather than surface-level characters.
+
+## Interaction with parameters
+
+SQL normalisation applies to the query string only, not to bound parameters. A query like `SELECT * FROM users WHERE id = ?` with parameters `(42,)` and the same query with parameters `(99,)` produce the same normalised SQL but different cassette entries, because parameters are stored separately in the `.json` file and compared exactly.
+
+This is the expected behaviour: two queries with different parameter values are different interactions, even if the SQL template is identical. The cassette stores them as separate entries and replays them in order.
+
+See the [Cassette Format reference](../reference/cassette-format.md) for how interactions are numbered and ordered within a cassette.
+
+## Replay matching
+
+On replay, the plugin normalises the incoming SQL query using the same sqlglot path, then looks for a `.sql` file in the cassette directory that matches the normalised text. If found, it reads the corresponding `.arrow` and `.json` files and returns the stored result.
+
+This means the cassette match is always an exact string comparison of two normalised forms — not a fuzzy match, not a similarity score. If the normalised form of the replay query matches the normalised form stored in the cassette, the interaction is replayed. If it does not match, the plugin raises `CassetteMissError`.
+
+Within a single cassette, multiple interactions are stored as numbered files (`000.sql`, `001.sql`, etc.) in recording order. On replay, the plugin iterates through them in order — it does not use SQL content to select which interaction to return. This means a test that runs the same query twice returns the first recorded result on the first call and the second on the second call, even if both calls have the same normalised SQL.
+
+The order-based replay model is a deliberate choice: it avoids the complexity of content-based dispatch and makes the replay sequence predictable from the recording order.
