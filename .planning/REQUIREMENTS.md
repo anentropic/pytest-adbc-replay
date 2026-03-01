@@ -1,27 +1,28 @@
 # Requirements: pytest-adbc-replay
 
 **Defined:** 2026-02-28
+**Updated:** 2026-03-01 (v1.0.0 milestone)
 **Core Value:** CI tests pass without warehouse credentials — record once locally, replay everywhere, with query changes visible as plain diffs in PRs.
 
-## v1 Requirements
+## v1 Requirements (Phase 1–3 — Complete)
 
 ### Plugin Infrastructure
 
-- [ ] **INFRA-01**: Plugin is discoverable by pytest via `pytest11` entry point (no manual import needed)
-- [ ] **INFRA-02**: User can set record mode via `--adbc-record=<mode>` CLI flag
-- [ ] **INFRA-03**: User can use `adbc_replay` session-scoped fixture that exposes `.wrap()` for connection wrapping
-- [ ] **INFRA-04**: User can apply `@pytest.mark.adbc_cassette("name")` marker to override cassette name per test
-- [ ] **INFRA-05**: User can apply `@pytest.mark.adbc_cassette("name", dialect="snowflake")` to override SQL dialect per test
-- [ ] **INFRA-06**: Default cassette name is derived from test node ID (module + test name) when no marker is present
+- [x] **INFRA-01**: Plugin is discoverable by pytest via `pytest11` entry point (no manual import needed)
+- [x] **INFRA-02**: User can set record mode via `--adbc-record=<mode>` CLI flag
+- [x] **INFRA-03**: User can use `adbc_replay` session-scoped fixture that exposes `.wrap()` for connection wrapping
+- [x] **INFRA-04**: User can apply `@pytest.mark.adbc_cassette("name")` marker to override cassette name per test
+- [x] **INFRA-05**: User can apply `@pytest.mark.adbc_cassette("name", dialect="snowflake")` to override SQL dialect per test
+- [x] **INFRA-06**: Default cassette name is derived from test node ID (module + test name) when no marker is present
 
 ### Cursor Proxy
 
-- [ ] **PROXY-01**: `ReplayConnection.cursor()` returns a `ReplayCursor` wrapping the real cursor in record mode
-- [ ] **PROXY-02**: In replay mode (`none`), `ReplayConnection` does not open or import a real ADBC driver
-- [ ] **PROXY-03**: `ReplayCursor.execute()` executes the query on the real cursor and records result to cassette in record mode
-- [ ] **PROXY-04**: `ReplayCursor.execute()` loads result from cassette in replay mode
-- [ ] **PROXY-05**: `ReplayCursor` implements full cursor protocol: `fetch_arrow_table()`, `fetchall()`, `fetchone()`, `fetchmany()`, `description`, `rowcount`, `close()`, `__enter__`/`__exit__`
-- [ ] **PROXY-06**: `ReplayCursor` raises clear `CassetteMissError` on cassette miss in replay mode, showing normalised SQL and available interactions
+- [x] **PROXY-01**: `ReplayConnection.cursor()` returns a `ReplayCursor` wrapping the real cursor in record mode
+- [x] **PROXY-02**: In replay mode (`none`), `ReplayConnection` does not open or import a real ADBC driver
+- [x] **PROXY-03**: `ReplayCursor.execute()` executes the query on the real cursor and records result to cassette in record mode
+- [x] **PROXY-04**: `ReplayCursor.execute()` loads result from cassette in replay mode
+- [x] **PROXY-05**: `ReplayCursor` implements full cursor protocol: `fetch_arrow_table()`, `fetchall()`, `fetchone()`, `fetchmany()`, `description`, `rowcount`, `close()`, `__enter__`/`__exit__`
+- [x] **PROXY-06**: `ReplayCursor` raises clear `CassetteMissError` on cassette miss in replay mode, showing normalised SQL and available interactions
 
 ### Cassette Storage
 
@@ -41,10 +42,10 @@
 
 ### Record Modes
 
-- [ ] **MODE-01**: `none` mode (default) — replay only; fail with clear error on cassette miss; never contacts warehouse
-- [ ] **MODE-02**: `once` mode — record if cassette directory does not exist; replay if it does
-- [ ] **MODE-03**: `new_episodes` mode — replay existing interactions; record any that are not in the cassette
-- [ ] **MODE-04**: `all` mode — re-record everything, overwriting existing cassettes
+- [x] **MODE-01**: `none` mode (default) — replay only; fail with clear error on cassette miss; never contacts warehouse
+- [x] **MODE-02**: `once` mode — record if cassette directory does not exist; replay if it does
+- [x] **MODE-03**: `new_episodes` mode — replay existing interactions; record any that are not in the cassette
+- [x] **MODE-04**: `all` mode — re-record everything, overwriting existing cassettes
 
 ### Configuration
 
@@ -56,6 +57,26 @@
 
 - [x] **DX-01**: Record mode is printed in pytest header output so users know what mode is active
 - [x] **DX-02**: Plugin provides an empty scrubbing hook slot (interface design only — implementation deferred to v1.x)
+
+## v1.0.0 Requirements (Phase 4+ — Publishing Polish)
+
+### Documentation
+
+- [ ] **DOC-01**: User can read a README covering installation, quick-start, record modes (all four), and `adbc_replay` fixture usage with a real code example
+- [ ] **DOC-02**: README explains all ini/CLI configuration options (`adbc_cassette_dir`, `adbc_record_mode`, `adbc_dialect`, `--adbc-record`) with examples
+- [ ] **DOC-03**: README shows the cassette directory structure (`.sql`, `.arrow`, `.json` files) so users understand what gets committed to version control
+- [ ] **DOC-04**: CHANGELOG.md documents v1.0.0 with summary of all three development phases
+
+### Publishing
+
+- [ ] **PUB-01**: `pyproject.toml` has complete PyPI metadata: classifiers (Python/pytest versions, license, development status), project URLs (source, issues), keywords
+- [ ] **PUB-02**: GitHub Actions CI workflow runs the test suite on push and PRs across supported Python versions (3.10, 3.11, 3.12)
+- [ ] **PUB-03**: GitHub Actions publish workflow builds and uploads to PyPI when a version tag (`v*.*.*`) is pushed
+
+### Type Exports
+
+- [ ] **TYPE-01**: Package ships a `py.typed` marker file so downstream type checkers recognize it as typed
+- [ ] **TYPE-02**: `src/pytest_adbc_replay/__init__.py` declares `__all__` listing all public names intended for downstream use
 
 ## v2 Requirements
 
@@ -89,6 +110,7 @@
 | Network/socket blocking | ADBC drivers use native C/C++ transports — socket patching does not reach them |
 | Custom persisters | Cassettes must be committed to the repo for PR diffs; filesystem-only is correct |
 | Specific ADBC driver dependencies | Drivers (snowflake, databricks, etc.) are provided by consuming projects |
+| Sphinx/MkDocs documentation site | Out of scope for v1.0.0 — README is sufficient for initial release |
 
 ## Traceability
 
@@ -96,18 +118,18 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
-| INFRA-05 | Phase 1 | Pending |
-| INFRA-06 | Phase 1 | Pending |
-| PROXY-01 | Phase 1 | Pending |
-| PROXY-02 | Phase 1 | Pending |
-| PROXY-03 | Phase 1 | Pending |
-| PROXY-04 | Phase 1 | Pending |
-| PROXY-05 | Phase 1 | Pending |
-| PROXY-06 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
+| INFRA-02 | Phase 1 | Complete |
+| INFRA-03 | Phase 1 | Complete |
+| INFRA-04 | Phase 1 | Complete |
+| INFRA-05 | Phase 1 | Complete |
+| INFRA-06 | Phase 1 | Complete |
+| PROXY-01 | Phase 1 | Complete |
+| PROXY-02 | Phase 1 | Complete |
+| PROXY-03 | Phase 1 | Complete |
+| PROXY-04 | Phase 1 | Complete |
+| PROXY-05 | Phase 1 | Complete |
+| PROXY-06 | Phase 1 | Complete |
 | CASS-01 | Phase 2 | Complete |
 | CASS-02 | Phase 2 | Complete |
 | CASS-03 | Phase 2 | Complete |
@@ -118,21 +140,30 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NORM-02 | Phase 2 | Complete |
 | NORM-03 | Phase 2 | Complete |
 | NORM-04 | Phase 2 | Complete |
-| MODE-01 | Phase 2 | Pending |
-| MODE-02 | Phase 2 | Pending |
-| MODE-03 | Phase 2 | Pending |
-| MODE-04 | Phase 2 | Pending |
+| MODE-01 | Phase 2 | Complete |
+| MODE-02 | Phase 2 | Complete |
+| MODE-03 | Phase 2 | Complete |
+| MODE-04 | Phase 2 | Complete |
 | CONF-01 | Phase 3 | Complete |
 | CONF-02 | Phase 3 | Complete |
 | CONF-03 | Phase 3 | Complete |
 | DX-01 | Phase 3 | Complete |
 | DX-02 | Phase 3 | Complete |
+| DOC-01 | Phase 4 | Pending |
+| DOC-02 | Phase 4 | Pending |
+| DOC-03 | Phase 4 | Pending |
+| DOC-04 | Phase 4 | Pending |
+| PUB-01 | Phase 4 | Pending |
+| PUB-02 | Phase 5 | Pending |
+| PUB-03 | Phase 5 | Pending |
+| TYPE-01 | Phase 4 | Pending |
+| TYPE-02 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 31 total
-- Mapped to phases: 31
-- Unmapped: 0
+- v1.0.0 requirements: 9 total
+- Mapped to phases: 9
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-28*
-*Last updated: 2026-02-28 after roadmap creation*
+*Last updated: 2026-03-01 after v1.0.0 milestone start*
