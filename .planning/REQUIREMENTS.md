@@ -78,15 +78,15 @@
 
 ### Publishing
 
-- [ ] **PUB-01**: `pyproject.toml` has complete PyPI metadata: classifiers (Python/pytest versions, license, development status), project URLs (source, issues, docs), keywords
+- [x] **PUB-01**: `pyproject.toml` has complete PyPI metadata: classifiers (Python/pytest versions, license, development status), project URLs (source, issues, docs), keywords
 - [ ] **PUB-02**: GitHub Actions CI workflow runs the test suite on push and PRs across supported Python versions (3.10, 3.11, 3.12)
 - [ ] **PUB-03**: GitHub Actions publish workflow builds and uploads to PyPI when a version tag (`v*.*.*`) is pushed
 - [ ] **PUB-04**: GitHub Actions deploys the MkDocs site to GitHub Pages when a version tag is pushed
 
 ### Type Exports
 
-- [ ] **TYPE-01**: Package ships a `py.typed` marker file so downstream type checkers recognize it as typed
-- [ ] **TYPE-02**: `src/pytest_adbc_replay/__init__.py` declares `__all__` listing all public names intended for downstream use
+- [x] **TYPE-01**: Package ships a `py.typed` marker file so downstream type checkers recognize it as typed
+- [x] **TYPE-02**: `src/pytest_adbc_replay/__init__.py` declares `__all__` listing all public names intended for downstream use
 
 ## v2 Requirements
 
@@ -159,9 +159,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONF-03 | Phase 3 | Complete |
 | DX-01 | Phase 3 | Complete |
 | DX-02 | Phase 3 | Complete |
-| TYPE-01 | Phase 4 | Pending |
-| TYPE-02 | Phase 4 | Pending |
-| PUB-01 | Phase 4 | Pending |
+| TYPE-01 | Phase 4 | Complete |
+| TYPE-02 | Phase 4 | Complete |
+| PUB-01 | Phase 4 | Complete |
 | DOC-01 | Phase 5 | Pending |
 | DOC-02 | Phase 5 | Pending |
 | DOC-03 | Phase 5 | Pending |
