@@ -62,6 +62,25 @@ Three articles — "why" focused, accessible to any pytest user, not an internal
 
 </decisions>
 
+<skills>
+## Skill References for Executor
+
+The gsd-executor cannot use the `Skill` tool. Plans must include these files directly in the execution context so the executor has the instructions inline:
+
+**Humanizer** — apply to every hand-written prose file after writing it:
+- `@/Users/paul/.claude/skills/humanizer/SKILL.md`
+
+**Diataxis documentation** — use when writing each doc type:
+- `@/Users/paul/.claude/skills/diataxis-documentation/SKILL.md`
+- `@/Users/paul/.claude/skills/diataxis-documentation/references/tutorials.md`
+- `@/Users/paul/.claude/skills/diataxis-documentation/references/how-to-guides.md`
+- `@/Users/paul/.claude/skills/diataxis-documentation/references/reference.md`
+- `@/Users/paul/.claude/skills/diataxis-documentation/references/explanation.md`
+
+The planner should include all of the above in the `execution_context` block of each plan that writes documentation content. Each plan task that produces a `.md` file should have an explicit sub-step: apply humanizer review and edit in place before marking the task done.
+
+</skills>
+
 <specifics>
 ## Specific Ideas
 
