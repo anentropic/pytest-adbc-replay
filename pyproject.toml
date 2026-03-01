@@ -8,14 +8,31 @@ authors = [
 ]
 requires-python = ">=3.11"
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Framework :: Pytest",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Database",
 ]
+keywords = ["pytest", "adbc", "database", "testing", "cassette", "record", "replay", "vcr", "arrow"]
 dependencies = [
     "adbc-driver-manager>=1.0.0",
     "pyarrow>=14.0",
     "sqlglot>=23.0",
     "pytest>=8.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/TODO/pytest-adbc-replay"
+Source = "https://github.com/TODO/pytest-adbc-replay"
+Issues = "https://github.com/TODO/pytest-adbc-replay/issues"
+Documentation = "https://TODO.github.io/pytest-adbc-replay"
 
 [build-system]
 requires = ["uv_build>=0.9.18,<1.0.0"]
