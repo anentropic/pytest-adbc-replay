@@ -79,7 +79,7 @@
 ### Publishing
 
 - [x] **PUB-01**: `pyproject.toml` has complete PyPI metadata: classifiers (Python/pytest versions, license, development status), project URLs (source, issues, docs), keywords
-- [ ] **PUB-02**: GitHub Actions CI workflow runs the test suite on push and PRs across supported Python versions (3.11, 3.12, 3.13, 3.14)
+- [x] **PUB-02**: GitHub Actions CI workflow runs the test suite on push and PRs across supported Python versions (3.11, 3.12, 3.13, 3.14)
 - [x] **PUB-03**: GitHub Actions publish workflow builds and uploads to PyPI when a version tag (`v*.*.*`) is pushed
 - [x] **PUB-04**: GitHub Actions deploys the MkDocs site to GitHub Pages when a version tag is pushed
 
@@ -172,7 +172,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOC-08 | Phase 6 | Complete |
 | DOC-09 | Phase 6 | Complete |
 | DOC-10 | Phase 6 | Complete |
-| PUB-02 | Phase 7 | Pending |
+| PUB-02 | Phase 7 | Complete |
 | PUB-03 | Phase 7 | Complete |
 | PUB-04 | Phase 7 | Complete |
 
