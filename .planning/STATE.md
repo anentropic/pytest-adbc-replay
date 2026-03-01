@@ -1,54 +1,33 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: unknown
-last_updated: "2026-02-28T22:50:14.417Z"
+milestone: v1.0.0
+milestone_name: Docs and Publishing Polish
+status: active
+last_updated: "2026-03-01T00:00:00.000Z"
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-28)
+See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** CI tests pass without warehouse credentials -- record once locally, replay everywhere, with query changes visible as plain diffs in PRs.
-**Current focus:** Phase 3: Configuration, DX, and Integration Testing (complete)
+**Current focus:** Milestone v1.0.0 — Docs and Publishing Polish (not started)
 
 ## Current Position
 
-Phase: 3 of 3 (Configuration, DX, and Integration Testing)
-Plan: 2 of 2 in current phase
-Status: Complete — all plans done, pending phase verification
-Last activity: 2026-02-28 -- Completed 03-02-PLAN.md
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-01 — Milestone v1.0.0 started
 
-Progress: [██████████] 100%
-
-## Performance Metrics
-
-**Velocity:**
-- Total plans completed: 2 (this phase)
-- Average duration: 2.5 min
-- Total execution time: 5 min (phase 3)
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| Phase 1 | done | - | - |
-| Phase 2 | done | - | - |
-| Phase 3 | 2/2 | 5 min | 2.5 min |
-
-**Recent Trend:**
-- Last 5 plans: 3 min, 2 min
-- Trend: fast
-
-*Updated after each plan completion*
+Progress: [░░░░░░░░░░] 0%
 
 ## Accumulated Context
 

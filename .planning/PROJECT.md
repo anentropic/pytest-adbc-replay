@@ -8,24 +8,38 @@
 
 CI tests pass without warehouse credentials — record once locally, replay everywhere, with query changes visible as plain diffs in PRs.
 
+## Current Milestone: v1.0.0 Docs and Publishing Polish
+
+**Goal:** Make the plugin publicly releasable on PyPI with complete documentation, publishing automation, and proper type exports
+
+**Target features:**
+- README with installation, usage, record modes, configuration, and cassette format examples
+- PyPI metadata + GitHub Actions CI and publish-on-tag workflows
+- CHANGELOG.md documenting v1.0.0
+- `py.typed` marker and explicit public API exports
+
 ## Requirements
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Installable plugin discoverable via `pytest11` entry point — Phase 1
+- ✓ `--adbc-record=<mode>` CLI flag, `adbc_replay` fixture, `@pytest.mark.adbc_cassette` marker — Phase 1
+- ✓ Full cursor proxy protocol (`execute`, `fetch_arrow_table`, `fetchall`, `fetchone`, `fetchmany`, `description`, `rowcount`, context manager) — Phase 1
+- ✓ Cassette storage: directory-per-test, numbered `.sql`/`.arrow`/`.json` interaction files — Phase 2
+- ✓ SQL normalisation via sqlglot with fallback — Phase 2
+- ✓ All four record modes (`none`, `once`, `new_episodes`, `all`) — Phase 2
+- ✓ `pyproject.toml`/`pytest.ini` configuration (`adbc_cassette_dir`, `adbc_record_mode`, `adbc_dialect`) — Phase 3
+- ✓ Pytest header shows active record mode — Phase 3
+- ✓ Scrubber hook stub — Phase 3
+- ✓ Pytester E2E integration test against adbc-driver-sqlite — Phase 3
 
 ### Active
 
-- [ ] Intercept ADBC cursor `execute()` calls and record results to cassette files
-- [ ] Replay recorded cassettes without live warehouse access
-- [ ] Support record modes: `none` (default), `once`, `new_episodes`, `all`
-- [ ] Cassette format: directory per test, numbered interaction files (`.sql`, `.arrow`, optional `.json` for params/options)
-- [ ] SQL normalisation via sqlglot for stable cassette keys across formatting variations
-- [ ] Pytest marker `@pytest.mark.adbc_cassette` for cassette naming and dialect override
-- [ ] `adbc_replay` session-scoped fixture exposing `.wrap()` for connection wrapping
-- [ ] CLI flag `--adbc-record=<mode>` matching pytest-recording conventions
-- [ ] Configuration via `pyproject.toml` / `pytest.ini` (cassette dir, record mode, default dialect)
-- [ ] Driver-agnostic: works for any ADBC-compatible backend
+- [ ] README with full user documentation ready for PyPI
+- [ ] PyPI metadata complete (classifiers, URLs, license, keywords)
+- [ ] GitHub Actions CI (multi-Python matrix) and publish-on-tag workflows
+- [ ] CHANGELOG.md for v1.0.0
+- [ ] `py.typed` marker and `__all__` on public API exports
 
 ### Out of Scope
 
@@ -61,4 +75,4 @@ CI tests pass without warehouse credentials — record once locally, replay ever
 | Mirror pytest-recording conventions | Consistent mental model for projects using both plugins | — Pending |
 
 ---
-*Last updated: 2026-02-28 after initialization*
+*Last updated: 2026-03-01 after v1.0.0 milestone start*
