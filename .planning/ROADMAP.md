@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Type Exports and PyPI Metadata** - py.typed marker, public API __all__, and complete pyproject.toml classifiers/URLs/keywords (completed 2026-03-01)
 - [x] **Phase 5: README and CHANGELOG** - README covering all user-facing features and a CHANGELOG for v1.0.0 (completed 2026-03-01)
 - [x] **Phase 6: MkDocs Documentation Site** - Full diataxis-structured documentation site (Tutorial, How-To, Reference, Explanation) with humanizer-polished prose (completed 2026-03-01)
-- [ ] **Phase 7: Publishing Automation** - GitHub Actions CI matrix, publish-on-tag workflow, and GitHub Pages deployment (in progress)
+- [x] **Phase 7: Publishing Automation** - GitHub Actions CI matrix, publish-on-tag workflow, and GitHub Pages deployment (in progress) (completed 2026-03-01)
 
 ## Phase Details
 
@@ -159,4 +159,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Type Exports and PyPI Metadata | 1/1 | Complete   | 2026-03-01 |
 | 5. README and CHANGELOG | 1/1 | Complete | 2026-03-01 |
 | 6. MkDocs Documentation Site | 5/5 | Complete | 2026-03-01 |
-| 7. Publishing Automation | 1/3 | In progress | - |
+| 7. Publishing Automation | 3/3 | Complete   | 2026-03-01 |
