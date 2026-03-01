@@ -90,6 +90,14 @@ nav:
   - Home: index.md
   - Tutorial: tutorial/
   - How-To Guides: how-to/
-  - Reference: reference/
+  - Reference:
+    - Overview: reference/index.md
+    - Configuration: reference/configuration.md
+    - Record Modes: reference/record-modes.md
+    - Fixtures: reference/fixtures.md
+    - Markers: reference/markers.md
+    - Exceptions: reference/exceptions.md
+    - Cassette Format: reference/cassette-format.md
+    - API Reference: reference/pytest_adbc_replay/plugin.md
   - Explanation: explanation/
   - Changelog: changelog.md
