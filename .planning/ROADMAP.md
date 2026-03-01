@@ -93,10 +93,10 @@ Plans:
   1. A downstream project using the package with mypy or pyright finds `py.typed` and gets type information without any `# type: ignore` workarounds
   2. `from pytest_adbc_replay import *` (or inspection of `__all__`) exposes exactly the names intended for public use and nothing else
   3. `pip install pytest-adbc-replay` followed by inspecting the PyPI project page shows correct classifiers (Python versions, pytest compatibility, license, development status), project URLs (source, issues), and keywords
-**Plans**: TBD
+**Plans**: 1
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01-PLAN.md — Verify py.typed wheel inclusion, confirm __all__, add full PyPI classifiers/URLs/keywords
 
 ### Phase 5: README and CHANGELOG
 **Goal**: Users arriving at the PyPI page or GitHub repository have everything they need to install, configure, and use the plugin without reading source code
@@ -151,7 +151,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 1. Plugin Skeleton and Cursor Proxy | 3/3 | Complete | 2026-02-28 |
 | 2. Record/Replay Engine | 4/4 | Complete | 2026-02-28 |
 | 3. Configuration, DX, and Integration Testing | 2/2 | Complete | 2026-03-01 |
-| 4. Type Exports and PyPI Metadata | 0/? | Not started | - |
+| 4. Type Exports and PyPI Metadata | 0/1 | Not started | - |
 | 5. README and CHANGELOG | 0/? | Not started | - |
 | 6. MkDocs Documentation Site | 0/? | Not started | - |
 | 7. Publishing Automation | 0/? | Not started | - |
