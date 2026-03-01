@@ -67,11 +67,21 @@
 - [ ] **DOC-03**: README shows the cassette directory structure (`.sql`, `.arrow`, `.json` files) so users understand what gets committed to version control
 - [ ] **DOC-04**: CHANGELOG.md documents v1.0.0 with summary of all three development phases
 
+### MkDocs Site
+
+- [ ] **DOC-05**: MkDocs documentation site with Material theme builds without errors and is navigable locally via `mkdocs serve`
+- [ ] **DOC-06**: Docs Tutorial section (diataxis: learning-oriented) walks a new user through recording their first cassette and replaying it end-to-end, step by step
+- [ ] **DOC-07**: Docs How-To section (diataxis: task-oriented) covers common tasks: configure via ini, run in CI without credentials, use multiple drivers, and handle record mode per test
+- [ ] **DOC-08**: Docs Reference section (diataxis: information-oriented) documents all configuration keys, CLI flags, fixtures, markers, record modes, and public API types
+- [ ] **DOC-09**: Docs Explanation section (diataxis: understanding-oriented) explains cassette format rationale, SQL normalisation design, and record mode semantics
+- [ ] **DOC-10**: All documentation prose passes humanizer review — no AI vocabulary, no inflated symbolism, no em-dash overuse, reads as natural technical writing
+
 ### Publishing
 
-- [ ] **PUB-01**: `pyproject.toml` has complete PyPI metadata: classifiers (Python/pytest versions, license, development status), project URLs (source, issues), keywords
+- [ ] **PUB-01**: `pyproject.toml` has complete PyPI metadata: classifiers (Python/pytest versions, license, development status), project URLs (source, issues, docs), keywords
 - [ ] **PUB-02**: GitHub Actions CI workflow runs the test suite on push and PRs across supported Python versions (3.10, 3.11, 3.12)
 - [ ] **PUB-03**: GitHub Actions publish workflow builds and uploads to PyPI when a version tag (`v*.*.*`) is pushed
+- [ ] **PUB-04**: GitHub Actions deploys the MkDocs site to GitHub Pages when a version tag is pushed
 
 ### Type Exports
 
@@ -149,21 +159,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONF-03 | Phase 3 | Complete |
 | DX-01 | Phase 3 | Complete |
 | DX-02 | Phase 3 | Complete |
-| DOC-01 | Phase 4 | Pending |
-| DOC-02 | Phase 4 | Pending |
-| DOC-03 | Phase 4 | Pending |
-| DOC-04 | Phase 4 | Pending |
-| PUB-01 | Phase 4 | Pending |
-| PUB-02 | Phase 5 | Pending |
-| PUB-03 | Phase 5 | Pending |
 | TYPE-01 | Phase 4 | Pending |
 | TYPE-02 | Phase 4 | Pending |
+| PUB-01 | Phase 4 | Pending |
+| DOC-01 | Phase 5 | Pending |
+| DOC-02 | Phase 5 | Pending |
+| DOC-03 | Phase 5 | Pending |
+| DOC-04 | Phase 5 | Pending |
+| DOC-05 | Phase 6 | Pending |
+| DOC-06 | Phase 6 | Pending |
+| DOC-07 | Phase 6 | Pending |
+| DOC-08 | Phase 6 | Pending |
+| DOC-09 | Phase 6 | Pending |
+| DOC-10 | Phase 6 | Pending |
+| PUB-02 | Phase 7 | Pending |
+| PUB-03 | Phase 7 | Pending |
+| PUB-04 | Phase 7 | Pending |
 
 **Coverage:**
-- v1.0.0 requirements: 9 total
-- Mapped to phases: 9
+- v1.0.0 requirements: 15 total
+- Mapped to phases: 15
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-28*
-*Last updated: 2026-03-01 after v1.0.0 milestone start*
+*Last updated: 2026-03-01 — v1.0.0 roadmap created (phases 4-6)*
