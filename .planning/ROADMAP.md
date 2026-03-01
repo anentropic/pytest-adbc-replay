@@ -136,13 +136,15 @@ Plans:
 **Depends on**: Phase 6
 **Requirements**: PUB-02, PUB-03, PUB-04
 **Success Criteria** (what must be TRUE):
-  1. Opening a pull request or pushing to main triggers a CI run that executes the test suite on Python 3.10, 3.11, and 3.12 and reports pass/fail status on the PR
+  1. Opening a pull request or pushing to any branch triggers a CI run that executes the test suite on Python 3.11, 3.12, 3.13, and 3.14 and reports pass/fail status on the PR
   2. Pushing a tag matching `v*.*.*` triggers the publish workflow which builds the distribution and uploads it to PyPI without manual intervention
   3. Pushing a tag matching `v*.*.*` also triggers the docs deployment workflow which builds and pushes the MkDocs site to GitHub Pages
-**Plans**: TBD
+**Plans**: 3
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01-PLAN.md — Create reusable _test.yml workflow, add tag trigger to docs.yml, add Python 3.14 classifier
+- [ ] 07-02-PLAN.md — Update ci.yml and pr.yml to call reusable workflow (PUB-02)
+- [ ] 07-03-PLAN.md — Fix and complete release.yml: quality gate, cookiecutter bug, GitHub Release creation
 
 ## Progress
 
@@ -157,4 +159,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Type Exports and PyPI Metadata | 1/1 | Complete   | 2026-03-01 |
 | 5. README and CHANGELOG | 1/1 | Complete | 2026-03-01 |
 | 6. MkDocs Documentation Site | 0/5 | Not started | - |
-| 7. Publishing Automation | 0/? | Not started | - |
+| 7. Publishing Automation | 0/3 | Not started | - |
