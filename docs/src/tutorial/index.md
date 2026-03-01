@@ -1,3 +1,22 @@
 # Tutorial
 
-(Coming soon — this file is replaced by 06-02-PLAN)
+This tutorial takes you through recording your first ADBC query cassette and replaying it in a test run that requires no live database connection.
+
+## What you will need
+
+- Python 3.11 or later
+- pytest installed in your project
+- Basic familiarity with how pytest fixtures work
+
+You do not need a database server or cloud credentials. The tutorial uses DuckDB, which runs in-process.
+
+## What you will have at the end
+
+- A `conftest.py` that wraps an ADBC connection with the plugin
+- A test file with one marked test
+- Cassette files committed to version control
+- A passing replay run that makes no database calls
+
+## Get started
+
+[Record your first cassette](first-cassette.md)
