@@ -89,6 +89,46 @@ uv run pytest --cov=src/pytest_adbc_replay --cov-report=term
 uv build
 ```
 
+## Documentation
+
+### Skills for documentation tasks
+
+Subagents (gsd-executor, gsd-planner, etc.) do not have access to the `Skill` tool. When a plan includes documentation tasks, the planner must include skill files directly in the plan's `<execution_context>` block so the executor has the instructions inline.
+
+For any PLAN.md that writes or substantially rewrites documentation, add to its `<execution_context>`:
+
+```
+@/Users/paul/.claude/skills/diataxis-documentation/SKILL.md
+@/Users/paul/.claude/skills/diataxis-documentation/references/tutorials.md
+@/Users/paul/.claude/skills/diataxis-documentation/references/how-to-guides.md
+@/Users/paul/.claude/skills/diataxis-documentation/references/reference.md
+@/Users/paul/.claude/skills/diataxis-documentation/references/explanation.md
+@/Users/paul/.claude/skills/humanizer/SKILL.md
+```
+
+### When to apply
+
+- **New pages:** full diataxis + humanizer workflow (mandatory)
+- **Major rewrites (>50% of page changed):** full workflow (mandatory)
+- **Minor fixes (typos, version numbers, small corrections):** not required
+
+### Humanizer pass
+
+Every task that produces or substantially modifies a `.md` file must include an explicit sub-step: apply humanizer review and edit in place before marking the task done. Check for: AI vocabulary, em-dash overuse, rule-of-three, promotional language, `-ing` phrase endings.
+
+### Content types
+
+- **Tutorial** (`docs/src/tutorial/`): Learning-oriented, guided from install to first working replay. Copy-pasteable code at every step.
+- **How-to guides** (`docs/src/how-to/`): Goal-oriented, assumes reader knows the basics. Solve one specific task per guide.
+- **Reference** (`docs/src/reference/`): Auto-generated via mkdocstrings + `gen_ref_pages.py` for module API. Hand-crafted pages for config keys, CLI flags, fixtures, markers, record modes, cassette format.
+- **Explanation** (`docs/src/explanation/`): Understanding-oriented, "why" not "how". No step-by-step instructions — link to tutorials/how-tos for action items.
+
+### Writing voice
+
+- **Audience:** Python/pytest users who want to test against a real database without running one in CI
+- **Tone:** Direct and practical (like pytest's own docs)
+- **Perspective:** Second person ("you") for Tutorial and How-To; neutral for Reference and Explanation
+
 ## Notes for Agents
 
 - Always run quality gates before committing
