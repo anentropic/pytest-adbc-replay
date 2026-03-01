@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-01T14:05:31.355Z"
+status: active
+last_updated: "2026-03-01T17:02:00Z"
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 6
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 19
+  completed_plans: 17
 ---
 
 # Project State
@@ -18,22 +18,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** CI tests pass without warehouse credentials -- record once locally, replay everywhere, with query changes visible as plain diffs in PRs.
-**Current focus:** Phase 5 — README and CHANGELOG (complete)
+**Current focus:** Phase 7 — Publishing Automation (in progress)
 
 ## Current Position
 
-Phase: 5 of 6 (README and CHANGELOG)
-Plan: 1 of 1 in current phase (complete)
+Phase: 7 of 7 (Publishing Automation)
+Plan: 1 of 3 in current phase (complete)
 Status: Active
-Last activity: 2026-03-01 — Completed 05-01 (README.md rewritten, cliff.toml and CHANGELOG.md created)
+Last activity: 2026-03-01 — Completed 07-01 (reusable _test.yml workflow, docs tag trigger, Python 3.14 classifier, PUB-02 fix)
 
-Progress: [████████░░] 83%
+Progress: [█████████░] 89%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9 (phases 1-3)
-- Average duration: unknown
+- Total plans completed: 17
+- Average duration: ~2min
 - Total execution time: unknown
 
 **By Phase:**
@@ -45,6 +45,8 @@ Progress: [████████░░] 83%
 | 3. Config, DX, Integration | 2 | — | — |
 | 4. Type Exports and PyPI Metadata | 1 | 2min | 2min |
 | 5. README and CHANGELOG | 1 | 2min | 2min |
+| 6. MkDocs Site | 5 | — | — |
+| 7. Publishing Automation | 1/3 done | 2min | 2min |
 
 *Updated after each plan completion*
 
@@ -64,6 +66,8 @@ Recent decisions affecting current work:
 - Phase 5 Plan 01: CHANGELOG.md hand-written for v1.0.0 (no tag yet); cliff.toml ready for Phase 7 automation to regenerate on tagging
 - Phase 5 Plan 01: DuckDB used in README quick-start example (self-contained, no credentials needed)
 - Phase 5 Plan 01: cliff.toml filters to feat/fix only to suppress docs/test/chore/wip/plan noise from GSD planning commits
+- Phase 7 Plan 01: _test.yml has no inputs; all four Python versions (3.11-3.14) are required-to-pass legs; checkout@v4 consistent with docs.yml
+- Phase 7 Plan 01: Tag trigger uses v[0-9]+.[0-9]+.[0-9]+ and v[0-9]+.[0-9]+.[0-9]+-* patterns to cover stable and pre-release versions
 
 ### Pending Todos
 
@@ -76,5 +80,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 05-01-PLAN.md (README.md rewritten, cliff.toml and CHANGELOG.md created for v1.0.0)
+Stopped at: Completed 07-01-PLAN.md (reusable _test.yml workflow created, docs.yml tag trigger added, Python 3.14 classifier, PUB-02 description corrected)
 Resume file: None

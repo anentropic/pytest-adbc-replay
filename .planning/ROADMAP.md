@@ -30,8 +30,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 4: Type Exports and PyPI Metadata** - py.typed marker, public API __all__, and complete pyproject.toml classifiers/URLs/keywords (completed 2026-03-01)
 - [x] **Phase 5: README and CHANGELOG** - README covering all user-facing features and a CHANGELOG for v1.0.0 (completed 2026-03-01)
-- [ ] **Phase 6: MkDocs Documentation Site** - Full diataxis-structured documentation site (Tutorial, How-To, Reference, Explanation) with humanizer-polished prose
-- [ ] **Phase 7: Publishing Automation** - GitHub Actions CI matrix, publish-on-tag workflow, and GitHub Pages deployment
+- [x] **Phase 6: MkDocs Documentation Site** - Full diataxis-structured documentation site (Tutorial, How-To, Reference, Explanation) with humanizer-polished prose (completed 2026-03-01)
+- [ ] **Phase 7: Publishing Automation** - GitHub Actions CI matrix, publish-on-tag workflow, and GitHub Pages deployment (in progress)
 
 ## Phase Details
 
@@ -125,11 +125,11 @@ Plans:
 **Plans**: 5
 
 Plans:
-- [ ] 06-01-PLAN.md — MkDocs nav wiring, index.md Quick Start, verify mkdocs build passes
-- [ ] 06-02-PLAN.md — Tutorial: step-by-step DuckDB walkthrough from install to first replay
-- [ ] 06-03-PLAN.md — How-To guides: six task-oriented guides (CI, ini config, cassette names, multi-driver, scrubber, serialisers)
-- [ ] 06-04-PLAN.md — Reference pages: configuration, record modes, fixtures, markers, exceptions, cassette format
-- [ ] 06-05-PLAN.md — Explanation articles: cassette format rationale, SQL normalisation design, record mode semantics
+- [x] 06-01-PLAN.md — MkDocs nav wiring, index.md Quick Start, verify mkdocs build passes
+- [x] 06-02-PLAN.md — Tutorial: step-by-step DuckDB walkthrough from install to first replay
+- [x] 06-03-PLAN.md — How-To guides: six task-oriented guides (CI, ini config, cassette names, multi-driver, scrubber, serialisers)
+- [x] 06-04-PLAN.md — Reference pages: configuration, record modes, fixtures, markers, exceptions, cassette format
+- [x] 06-05-PLAN.md — Explanation articles: cassette format rationale, SQL normalisation design, record mode semantics
 
 ### Phase 7: Publishing Automation
 **Goal**: Pushing a version tag triggers a verified PyPI release and GitHub Pages docs deployment; every push and PR runs the test suite across all supported Python versions
@@ -142,7 +142,7 @@ Plans:
 **Plans**: 3
 
 Plans:
-- [ ] 07-01-PLAN.md — Create reusable _test.yml workflow, add tag trigger to docs.yml, add Python 3.14 classifier
+- [x] 07-01-PLAN.md — Create reusable _test.yml workflow, add tag trigger to docs.yml, add Python 3.14 classifier
 - [ ] 07-02-PLAN.md — Update ci.yml and pr.yml to call reusable workflow (PUB-02)
 - [ ] 07-03-PLAN.md — Fix and complete release.yml: quality gate, cookiecutter bug, GitHub Release creation
 
@@ -158,5 +158,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Configuration, DX, and Integration Testing | 2/2 | Complete | 2026-03-01 |
 | 4. Type Exports and PyPI Metadata | 1/1 | Complete   | 2026-03-01 |
 | 5. README and CHANGELOG | 1/1 | Complete | 2026-03-01 |
-| 6. MkDocs Documentation Site | 0/5 | Not started | - |
-| 7. Publishing Automation | 0/3 | Not started | - |
+| 6. MkDocs Documentation Site | 5/5 | Complete | 2026-03-01 |
+| 7. Publishing Automation | 1/3 | In progress | - |
