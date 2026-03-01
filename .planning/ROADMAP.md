@@ -96,7 +96,7 @@ Plans:
 **Plans**: 1
 
 Plans:
-- [ ] 04-01-PLAN.md — Verify py.typed wheel inclusion, confirm __all__, add full PyPI classifiers/URLs/keywords
+- [x] 04-01-PLAN.md — Verify py.typed wheel inclusion, confirm __all__, add full PyPI classifiers/URLs/keywords
 
 ### Phase 5: README and CHANGELOG
 **Goal**: Users arriving at the PyPI page or GitHub repository have everything they need to install, configure, and use the plugin without reading source code
@@ -107,10 +107,10 @@ Plans:
   2. All four record modes, all three configuration keys, the CLI flag, and the `adbc_replay` fixture are documented with examples in the README
   3. The cassette directory structure (`.sql`, `.arrow`, `.json` naming convention) is shown in the README so users understand what to commit to version control
   4. CHANGELOG.md exists and documents v1.0.0 with a summary of what the release delivers
-**Plans**: TBD
+**Plans**: 1
 
 Plans:
-- [ ] 05-01: TBD
+- [ ] 05-01-PLAN.md — Write README.md (install, quick-start, modes, config, cassette layout) and generate CHANGELOG.md via git-cliff with cliff.toml
 
 ### Phase 6: MkDocs Documentation Site
 **Goal**: A full documentation site structured with the diataxis framework (Tutorial, How-To, Reference, Explanation) is built with MkDocs Material, contains complete content, and all prose reads as natural technical writing
@@ -152,6 +152,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 2. Record/Replay Engine | 4/4 | Complete | 2026-02-28 |
 | 3. Configuration, DX, and Integration Testing | 2/2 | Complete | 2026-03-01 |
 | 4. Type Exports and PyPI Metadata | 1/1 | Complete   | 2026-03-01 |
-| 5. README and CHANGELOG | 0/? | Not started | - |
+| 5. README and CHANGELOG | 0/1 | Not started | - |
 | 6. MkDocs Documentation Site | 0/? | Not started | - |
 | 7. Publishing Automation | 0/? | Not started | - |
