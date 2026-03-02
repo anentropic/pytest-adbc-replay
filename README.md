@@ -29,7 +29,7 @@ Mocking is flexible enough to use with any ADBC driver.
 
 ```toml
 [tool.pytest.ini_options]
-adbc_auto_patch = "adbc_driver_duckdb.dbapi"
+adbc_auto_patch = ["adbc_driver_duckdb.dbapi"]
 ```
 
 The value is the Python module path where `connect()` lives — for all standard ADBC drivers this is `adbc_driver_<name>.dbapi`.
@@ -63,28 +63,7 @@ Replay from cassettes (default — no flag needed):
 pytest
 ```
 
-### Explicit conftest approach
-
-For session-scoped connections or when you prefer explicit control, use `adbc_replay.wrap()` from a fixture:
-
-```python
-import adbc_driver_duckdb.dbapi as duckdb
-import pytest
-
-
-@pytest.fixture(scope="session")
-def db_conn(adbc_replay, request):
-    return adbc_replay.wrap(
-        "adbc_driver_duckdb.dbapi",
-        request=request,
-    )
-```
-
-Both approaches produce cassettes in the same format.
-
 ## Cassette Layout
-
-**With `adbc_auto_patch`** (automatic interception):
 
 ```
 tests/cassettes/
@@ -95,17 +74,7 @@ tests/cassettes/
         └── 000.json     # parameters and driver options (null when absent)
 ```
 
-**With `adbc_replay.wrap()`** (explicit fixture):
-
-```
-tests/cassettes/
-└── my_query/
-    ├── 000.sql
-    ├── 000.arrow
-    └── 000.json
-```
-
-Commit both formats to version control — query changes appear as diffs in pull requests.
+Commit the cassettes to version control — any changes appear as diffs in pull requests.
 
 ## Configuration Reference
 
@@ -114,8 +83,8 @@ Commit both formats to version control — query changes appear as diffs in pull
 | `--adbc-record` | CLI flag | `none` | Record mode for this run |
 | `adbc_cassette_dir` | ini key | `tests/cassettes` | Directory to read/write cassettes |
 | `adbc_record_mode` | ini key | `none` | Persistent record mode (overridden by CLI flag) |
-| `adbc_dialect` | ini key | `""` | SQL dialect for normalisation (auto-detect when empty) |
-| `adbc_auto_patch` | ini key | `""` | Space-separated list of ADBC driver module names to auto-intercept |
+| `adbc_dialect` | ini key (linelist) | `[]` | SQL dialect for normalisation. Bare value = global fallback, `driver: dialect` = per-driver. Empty = auto-detect. |
+| `adbc_auto_patch` | ini key (linelist) | `[]` | ADBC driver module names to auto-intercept |
 | `adbc_scrub_keys` | ini key (linelist) | `[]` | Parameter key names to redact from cassette `.json` files |
 
 Minimal `pyproject.toml` snippet:
@@ -124,8 +93,8 @@ Minimal `pyproject.toml` snippet:
 [tool.pytest.ini_options]
 adbc_cassette_dir = "tests/cassettes"
 adbc_record_mode = "none"
-adbc_dialect = ""
-adbc_auto_patch = ""  # e.g. "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi"
+adbc_dialect = []  # e.g. ["adbc_driver_snowflake.dbapi: snowflake", "adbc_driver_duckdb.dbapi: duckdb"]
+adbc_auto_patch = []  # e.g. ["adbc_driver_duckdb.dbapi", "adbc_driver_snowflake.dbapi"]
 adbc_scrub_keys = []  # e.g. ["token password", "adbc_driver_snowflake: account_id"]
 ```
 
