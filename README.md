@@ -30,6 +30,8 @@ pip install adbc-driver-duckdb
 adbc_auto_patch = "adbc_driver_duckdb.dbapi"
 ```
 
+The value is the Python module path where `connect()` lives — for all standard ADBC drivers this is `adbc_driver_<name>.dbapi`.
+
 **`test_example.py`** — mark each test and call `connect()` normally:
 
 ```python

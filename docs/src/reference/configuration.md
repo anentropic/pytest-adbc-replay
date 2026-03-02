@@ -61,6 +61,8 @@ def test_something(db_conn): ...
 adbc_auto_patch = adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi
 ```
 
+Each value must be the module that exposes `connect()` at its top level — for ADBC drivers this is always `adbc_driver_<name>.dbapi`. See [Finding the right module path](../how-to/configure-via-ini.md#finding-the-right-module-path).
+
 Key behaviours:
 
 - Only drivers in this list have their `connect()` intercepted.

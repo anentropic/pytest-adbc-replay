@@ -19,6 +19,8 @@ Add the `adbc_auto_patch` setting to tell the plugin which driver modules to int
 adbc_auto_patch = "adbc_driver_duckdb.dbapi"
 ```
 
+`adbc_driver_duckdb.dbapi` is the Python module path where `connect()` lives — see [Finding the right module path](../how-to/configure-via-ini.md#finding-the-right-module-path) for other drivers.
+
 This is all the setup required. No `conftest.py` is needed for the basic case.
 
 ## Step 3: Write a test
