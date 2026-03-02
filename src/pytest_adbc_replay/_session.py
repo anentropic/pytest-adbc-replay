@@ -31,12 +31,16 @@ class ReplaySession:
         param_serialisers: dict[Any, dict[str, Any]] | None = None,
         scrubber: object = None,
         dialect: str | None = None,
+        scrub_keys_global: list[str] | None = None,
+        scrub_keys_per_driver: dict[str, list[str]] | None = None,
     ) -> None:
         self.mode = mode
         self.cassette_dir = cassette_dir
         self.param_serialisers = param_serialisers
-        self.scrubber = scrubber  # stored; never called in v1
+        self.scrubber = scrubber
         self.dialect = dialect  # global dialect fallback from ini config
+        self.scrub_keys_global: list[str] = scrub_keys_global or []
+        self.scrub_keys_per_driver: dict[str, list[str]] = scrub_keys_per_driver or {}
 
     def wrap(
         self,
@@ -104,6 +108,9 @@ class ReplaySession:
             cassette_path=cassette_path,
             dialect=resolved_dialect,
             param_serialisers=resolved_serialisers,
+            scrub_keys_global=self.scrub_keys_global,
+            scrub_keys_per_driver=self.scrub_keys_per_driver,
+            scrubber=self.scrubber,
         )
 
     def wrap_from_item(
@@ -164,4 +171,7 @@ class ReplaySession:
             dialect=resolved_dialect,
             param_serialisers=self.param_serialisers,
             connect_fn=connect_fn,
+            scrub_keys_global=self.scrub_keys_global,
+            scrub_keys_per_driver=self.scrub_keys_per_driver,
+            scrubber=self.scrubber,
         )

@@ -84,6 +84,18 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         type="string",
         default="",
     )
+    parser.addini(
+        "adbc_scrub_keys",
+        help=(
+            "Lines of param key names to auto-redact from recorded cassette .json files. "
+            "Global form: space-separated key names (e.g. 'token password api_key'). "
+            "Per-driver form: 'driver_module_name: key1 key2' (e.g. "
+            "'adbc_driver_snowflake: account_id warehouse'). "
+            "Both forms can coexist. Matched dict param values become 'REDACTED'."
+        ),
+        type="linelist",
+        default=[],
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -102,6 +114,38 @@ def pytest_configure(config: pytest.Config) -> None:
 # --- Auto-patch hooks -----------------------------------------------------------
 
 
+def _parse_scrub_keys(lines: list[str]) -> tuple[list[str], dict[str, list[str]]]:
+    """
+    Parse the adbc_scrub_keys linelist ini value.
+
+    Each line is either:
+    - ``"key1 key2 key3"`` — global keys (no colon)
+    - ``"driver_name: key1 key2"`` — per-driver keys (colon-separated prefix)
+
+    Args:
+        lines: Lines from ``config.getini("adbc_scrub_keys")``.
+
+    Returns:
+        Tuple of ``(global_keys, per_driver_keys)`` where ``global_keys`` is a flat
+        list of key names and ``per_driver_keys`` maps driver module name → key names.
+    """
+    global_keys: list[str] = []
+    per_driver_keys: dict[str, list[str]] = {}
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        if ":" in line:
+            driver_part, _, keys_part = line.partition(":")
+            driver = driver_part.strip()
+            keys = keys_part.split()
+            if driver and keys:
+                per_driver_keys.setdefault(driver, []).extend(keys)
+        else:
+            global_keys.extend(line.split())
+    return global_keys, per_driver_keys
+
+
 def _build_session_from_config(config: pytest.Config) -> ReplaySession:
     """Build a ReplaySession from pytest config. Used by auto-patch initialization."""
     cli_mode = cast("str | None", config.getoption("--adbc-record"))
@@ -114,12 +158,17 @@ def _build_session_from_config(config: pytest.Config) -> ReplaySession:
     raw_dialect: str = cast("str", config.getini("adbc_dialect"))
     dialect: str | None = raw_dialect if raw_dialect else None
 
+    raw_scrub_keys: list[str] = cast("list[str]", config.getini("adbc_scrub_keys")) or []
+    global_keys, per_driver_keys = _parse_scrub_keys(raw_scrub_keys)
+
     return ReplaySession(
         mode=mode,
         cassette_dir=cassette_dir,
         param_serialisers=None,
         scrubber=None,
         dialect=dialect,
+        scrub_keys_global=global_keys,
+        scrub_keys_per_driver=per_driver_keys,
     )
 
 
@@ -234,22 +283,31 @@ def adbc_param_serialisers() -> dict[Any, dict[str, Any]] | None:
 @pytest.fixture(scope="session")
 def adbc_scrubber() -> object:
     """
-    Session-scoped fixture providing a scrubbing callback for recorded data (DX-02).
+    Session-scoped fixture providing a scrubbing callback for recorded data.
 
     Override this fixture in your conftest.py to register a callback that
     scrubs sensitive values before they are written to cassette files.
-    The callback is stored but NOT called in v1 -- this is the interface
-    reservation for v1.x implementation.
+
+    The callback receives ``(params, driver_name)`` where ``params`` is the
+    already config-scrubbed parameter dict (after ``adbc_scrub_keys`` is
+    applied) and ``driver_name`` is the ADBC driver module name string.
+
+    If the callback returns ``None``, the config-scrubbed params are used
+    unchanged. If it returns a dict, that dict replaces the params.
 
     Returns:
-        A callable or None (default). Return None to use no scrubbing.
+        A callable ``scrub(params, driver_name) -> dict | None``, or ``None``
+        to use no fixture-level scrubbing.
 
     Example::
 
         @pytest.fixture(scope="session")
         def adbc_scrubber():
-            def scrub(data):
-                return data  # no-op
+            def scrub(params, driver_name):
+                if isinstance(params, dict):
+                    return {k: "REDACTED" if k == "secret" else v
+                            for k, v in params.items()}
+                return params
             return scrub
     """
     return None
@@ -290,12 +348,17 @@ def adbc_replay(
     raw_dialect: str = cast("str", request.config.getini("adbc_dialect"))
     dialect: str | None = raw_dialect if raw_dialect else None
 
+    raw_scrub_keys: list[str] = cast("list[str]", request.config.getini("adbc_scrub_keys")) or []
+    global_keys, per_driver_keys = _parse_scrub_keys(raw_scrub_keys)
+
     session = ReplaySession(
         mode=mode,
         cassette_dir=cassette_dir,
         param_serialisers=adbc_param_serialisers,
         scrubber=adbc_scrubber,
         dialect=dialect,
+        scrub_keys_global=global_keys,
+        scrub_keys_per_driver=per_driver_keys,
     )
     # Overwrite the eagerly-initialized session_state (set in pytest_sessionstart)
     # with this fully-configured instance that includes param_serialisers and scrubber.

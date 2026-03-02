@@ -32,6 +32,9 @@ class ReplayConnection:
         dialect: str | None = None,
         param_serialisers: dict[Any, dict[str, Any]] | None = None,
         connect_fn: Any = None,
+        scrub_keys_global: list[str] | None = None,
+        scrub_keys_per_driver: dict[str, list[str]] | None = None,
+        scrubber: object = None,
     ) -> None:
         self._driver_module_name = driver_module_name
         self._db_kwargs = db_kwargs
@@ -39,6 +42,9 @@ class ReplayConnection:
         self._cassette_path = cassette_path
         self._dialect = dialect
         self._param_serialisers = param_serialisers
+        self._scrub_keys_global: list[str] = scrub_keys_global or []
+        self._scrub_keys_per_driver: dict[str, list[str]] = scrub_keys_per_driver or {}
+        self._scrubber = scrubber
         self._real_conn: Any = None  # adbc_driver_manager.dbapi.Connection or None
 
         if mode != "none":
@@ -66,6 +72,10 @@ class ReplayConnection:
             cassette_path=self._cassette_path,
             dialect=self._dialect,
             param_serialisers=self._param_serialisers,
+            scrub_keys_global=self._scrub_keys_global,
+            scrub_keys_per_driver=self._scrub_keys_per_driver,
+            driver_name=self._driver_module_name,
+            scrubber=self._scrubber,
         )
 
     def close(self) -> None:
