@@ -173,3 +173,15 @@ Plans:
 - [x] 08-01-PLAN.md — Core implementation: adbc_auto_patch ini key, monkeypatch hooks, wrap_from_item(), per-driver cassette path, adbc_connect fixture
 - [x] 08-02-PLAN.md — Test suite: pytester-based tests for auto-interception, pass-through, per-driver layout, adbc_connect escape hatch
 - [x] 08-03-PLAN.md — Documentation updates: README, tutorial, how-to guides, reference pages
+
+### Phase 9: implement and document the adbc_scrubber interface, consider if we can offer a default scrubbing already enabled perhaps with keys specified via config
+
+**Goal:** Users can redact sensitive parameter values (tokens, passwords, account IDs) from cassette .json files via adbc_scrub_keys ini config and/or the adbc_scrubber fixture callable, with config-based scrubbing running first and the fixture receiving (params, driver_name) for per-driver conditional logic
+**Requirements**: SCRUB-01
+**Depends on:** Phase 8
+**Plans:** 3 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — Core implementation: adbc_scrub_keys ini key, scrubbing pipeline in _cursor.py, wire adbc_scrubber fixture with (params, driver_name) signature
+- [ ] 09-02-PLAN.md — Test suite: pytester integration tests proving REDACTED in cassette JSON, scrubber callable argument tests, _parse_scrub_keys unit tests
+- [ ] 09-03-PLAN.md — Documentation updates: remove "not yet active" warnings, rewrite how-to guide, update reference pages and README
