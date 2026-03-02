@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from pytest_adbc_replay.plugin import _parse_scrub_keys
+
 if TYPE_CHECKING:
     import pytest
 
@@ -363,8 +365,8 @@ class TestScrubberFixture:
 
             @pytest.fixture(scope="session")
             def adbc_scrubber():
-                def my_scrubber(data):
-                    return data
+                def my_scrubber(params, driver_name):
+                    return params
                 return my_scrubber
         """
         )
@@ -377,3 +379,80 @@ class TestScrubberFixture:
         )
         result = pytester.runpytest("-v")
         result.assert_outcomes(passed=1)
+
+
+class TestParseScrupKeys:
+    """Unit tests for _parse_scrub_keys helper."""
+
+    def test_empty_list_returns_empty(self) -> None:
+        """Empty input -> empty global keys and empty per-driver dict."""
+        global_keys, per_driver = _parse_scrub_keys([])
+        assert global_keys == []
+        assert per_driver == {}
+
+    def test_blank_lines_ignored(self) -> None:
+        """Blank and whitespace-only lines are ignored."""
+        global_keys, per_driver = _parse_scrub_keys(["", "   ", "\t"])
+        assert global_keys == []
+        assert per_driver == {}
+
+    def test_global_keys_single_line(self) -> None:
+        """Single line with no colon -> all tokens are global keys."""
+        global_keys, per_driver = _parse_scrub_keys(["token password api_key"])
+        assert global_keys == ["token", "password", "api_key"]
+        assert per_driver == {}
+
+    def test_global_keys_multiple_lines(self) -> None:
+        """Multiple global lines accumulate into a single flat list."""
+        global_keys, per_driver = _parse_scrub_keys(["token", "password secret"])
+        assert global_keys == ["token", "password", "secret"]
+        assert per_driver == {}
+
+    def test_per_driver_single_line(self) -> None:
+        """Colon-prefixed line -> per-driver keys for that driver."""
+        global_keys, per_driver = _parse_scrub_keys(["adbc_driver_snowflake: account_id warehouse"])
+        assert global_keys == []
+        assert per_driver == {"adbc_driver_snowflake": ["account_id", "warehouse"]}
+
+    def test_per_driver_multiple_drivers(self) -> None:
+        """Multiple colon-prefixed lines build separate per-driver lists."""
+        global_keys, per_driver = _parse_scrub_keys(
+            [
+                "adbc_driver_snowflake: account_id",
+                "adbc_driver_duckdb: secret",
+            ]
+        )
+        assert global_keys == []
+        assert per_driver == {
+            "adbc_driver_snowflake": ["account_id"],
+            "adbc_driver_duckdb": ["secret"],
+        }
+
+    def test_global_and_per_driver_coexist(self) -> None:
+        """Global and per-driver forms can coexist in the same linelist."""
+        global_keys, per_driver = _parse_scrub_keys(["token", "adbc_driver_snowflake: account_id"])
+        assert global_keys == ["token"]
+        assert per_driver == {"adbc_driver_snowflake": ["account_id"]}
+
+    def test_same_driver_multiple_lines_accumulated(self) -> None:
+        """Multiple per-driver lines for the same driver accumulate keys."""
+        global_keys, per_driver = _parse_scrub_keys(
+            [
+                "adbc_driver_snowflake: account_id",
+                "adbc_driver_snowflake: warehouse",
+            ]
+        )
+        assert global_keys == []
+        assert per_driver == {"adbc_driver_snowflake": ["account_id", "warehouse"]}
+
+    def test_colon_only_line_ignored(self) -> None:
+        """A line with colon but empty driver or empty keys is ignored."""
+        global_keys, per_driver = _parse_scrub_keys([": key1"])  # empty driver
+        assert global_keys == []
+        assert per_driver == {}
+
+    def test_driver_with_no_keys_ignored(self) -> None:
+        """A line with driver name but no keys after colon is ignored."""
+        global_keys, per_driver = _parse_scrub_keys(["adbc_driver_snowflake: "])
+        assert global_keys == []
+        assert per_driver == {}
