@@ -87,6 +87,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-01
-Stopped at: Completed 07-03-PLAN.md (release.yml rewritten with quality gate, cookiecutter bug fixed, GitHub Release job added — all 3 plans of Phase 7 complete)
-Resume file: None
+Last session: 2026-03-02
+Stopped at: Phase 8 context gathered (automatic ADBC wrapping — monkeypatch + adbc_connect fixture + per-driver cassette subdirs)
+Resume file: .planning/phases/08-automatic-adbc-wrapping/08-CONTEXT.md

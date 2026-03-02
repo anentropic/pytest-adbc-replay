@@ -45,6 +45,14 @@ This phase does not change cassette format, record modes, SQL normalisation, or 
 - This replaces the current flat layout (`cassette/my_test/000...`) for auto-wrapped connections
 - Cassettes recorded with the old `adbc_replay.wrap()` approach retain the flat layout (the `adbc_connect` escape hatch also uses per-driver subdirs for consistency)
 
+### Documentation updates (required as part of this phase)
+- README quick-start must show the new `adbc_auto_patch` ini key + zero-conftest example
+- MkDocs Tutorial must be updated to use the new approach (currently shows `adbc_replay.wrap()`)
+- MkDocs How-To guides must be updated: `how-to/index.md` prerequisite, `how-to/multiple-drivers.md` examples
+- MkDocs Reference — fixtures section must document `adbc_connect` factory fixture and `adbc_auto_patch` ini key
+- MkDocs site index (`docs/src/index.md`) quick-start snippet updated
+- `adbc_replay.wrap()` and the manual conftest pattern remain valid and documented as the explicit/escape-hatch path
+
 ### Claude's Discretion
 - Exact pytest hook ordering (whether `pytest_runtest_call` or `pytest_runtest_setup` is better for item tracking)
 - Internal data structure for tracking open connections per test
