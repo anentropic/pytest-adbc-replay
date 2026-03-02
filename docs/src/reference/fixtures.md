@@ -9,7 +9,9 @@ The plugin provides four fixtures: one function-scoped factory (`adbc_connect`) 
 **Scope:** function
 **Type:** `Callable[[str, **Any], ReplayConnection]`
 
-`adbc_connect` is a factory fixture for creating replay connections explicitly. It is the escape hatch for tests that cannot use `adbc_auto_patch` — for example when a session-scoped or module-scoped connection is needed, or when you prefer explicit control over connection creation.
+`adbc_connect` is a factory fixture for creating replay connections explicitly.
+
+You typically do not need to use this fixture directly. It is the escape hatch for tests that cannot use `adbc_auto_patch` — for example when a session-scoped or module-scoped connection is needed, or when you prefer explicit control over connection creation.
 
 **Interface:**
 
@@ -46,6 +48,8 @@ The fixture closes all opened connections when the test finishes.
 **Type:** `ReplaySession`
 
 `adbc_replay` is the main plugin fixture. It tracks recording and replay state for the test session.
+
+You typically do not need to use this fixture directly.
 
 **Interface:**
 
@@ -85,6 +89,8 @@ def db_conn(adbc_replay, request):
 `adbc_scrubber` is a hook for custom scrubbing of parameter values before they are written to the
 `.json` cassette file. It runs after config-based scrubbing (`adbc_scrub_keys`) has already been
 applied.
+
+See: [Scrub sensitive values from cassettes](how-to/scrub-sensitive-values/)
 
 **Signature:**
 
@@ -133,6 +139,8 @@ callable sees. Use config for simple key redaction and the fixture for anything 
 **Default:** built-in serialisers for standard Python types
 
 `adbc_param_serialisers` extends or replaces the JSON serialisation logic for parameter types not handled by the default encoder.
+
+See: [Register custom parameter serializers](how-to/custom-param-serializers/)
 
 **Override:**
 

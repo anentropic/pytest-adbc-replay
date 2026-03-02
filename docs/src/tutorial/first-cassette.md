@@ -14,10 +14,19 @@ pip install pytest-adbc-replay adbc-driver-duckdb
 
 Add the `adbc_auto_patch` setting to tell the plugin which driver modules to intercept:
 
-```toml
-[tool.pytest.ini_options]
-adbc_auto_patch = "adbc_driver_duckdb.dbapi"
-```
+=== "pyproject.toml"
+
+    ```toml
+    [tool.pytest.ini_options]
+    adbc_auto_patch = ["adbc_driver_duckdb.dbapi"]
+    ```
+
+=== "pytest.ini"
+
+    ```ini
+    [pytest]
+    adbc_auto_patch = adbc_driver_duckdb.dbapi
+    ```
 
 `adbc_driver_duckdb.dbapi` is the Python module path where `connect()` lives — see [Finding the right module path](../how-to/configure-via-ini.md#finding-the-right-module-path) for other drivers.
 

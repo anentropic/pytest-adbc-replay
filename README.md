@@ -1,13 +1,13 @@
 # pytest-adbc-replay
 
-Record ADBC database queries to cassette files and replay them in CI without warehouse credentials.
+Record/replay testing for ADBC database queries, as a pytest plugin.
 
 ## What / Why
 
-Works like VCR: the first run records live queries to cassette files on disk, subsequent runs
-replay from those cassettes. CI tests pass with no live warehouse connection, and query changes
-are visible as plain diffs in pull requests (`.sql` files are human-readable and committed to
-version control).
+Works like [VCR.py](https://vcrpy.readthedocs.io/) and [pytest-recording](https://github.com/kiwicom/pytest-recording): the first run records live queries to cassette
+files on disk, subsequent runs replay from those cassettes. CI tests pass with no live warehouse
+connection, and query changes are visible as plain diffs in pull requests (`.sql` files are
+human-readable and committed to version control).
 
 ## Installation
 
@@ -17,11 +17,13 @@ pip install pytest-adbc-replay
 
 ## Quick Start
 
-Install a DuckDB ADBC driver (no credentials needed):
+For this example we'll use the DuckDB ADBC driver (no credentials needed):
 
 ```bash
 pip install adbc-driver-duckdb
 ```
+
+Mocking is flexible enough to use with any ADBC driver.
 
 **`pyproject.toml`** — tell the plugin which drivers to intercept:
 

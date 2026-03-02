@@ -4,10 +4,24 @@
 
 List both drivers in `adbc_auto_patch`:
 
-```toml
-[tool.pytest.ini_options]
-adbc_auto_patch = "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi"
-```
+=== "pyproject.toml"
+
+    ```toml
+    [tool.pytest.ini_options]
+    adbc_auto_patch = [
+        "adbc_driver_duckdb.dbapi",
+        "adbc_driver_snowflake.dbapi",
+    ]
+    ```
+
+=== "pytest.ini"
+
+    ```ini
+    [pytest]
+    adbc_auto_patch =
+        adbc_driver_duckdb.dbapi
+        adbc_driver_snowflake.dbapi
+    ```
 
 Each value is the module path where `connect()` lives — see [Finding the right module path](configure-via-ini.md#finding-the-right-module-path).
 

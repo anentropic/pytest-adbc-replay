@@ -28,7 +28,7 @@ There is a performance angle too. ADBC's native interface returns Arrow batches 
 
 ## Why human-readable SQL
 
-The `.sql` file does not store the raw query string as written in the test. It stores the canonicalised, pretty-printed form produced by sqlglot.
+The `.sql` file does not store the raw query string as written in the test. It stores the canonicalised, pretty-printed form produced by [sqlglot](https://sqlglot.com/).
 
 This matters for two reasons.
 
@@ -60,15 +60,15 @@ The tradeoff is three file operations per interaction instead of one. For the sc
 
 The cassette format is not designed for compactness. Arrow IPC files carry schema metadata on every write, which adds overhead per file. For large result sets this is fine; for a suite with thousands of very small interactions, the overhead of many small Arrow files could become measurable.
 
-The format is also not versioned in v1.0.0. There is no migration path if the format changes in a future release. Cassettes should be treated as regenerable — if the format changes, re-record with the new version.
+The cassette format is not versioned. There is no migration path if the format changes in a future release, although we think this is unlikely. Cassettes should be treated as regenerable — if the format changes, re-record with the new version.
 
 ## Relation to VCR
 
-VCR (video cassette recorder) libraries record and replay HTTP interactions by capturing request/response pairs. pytest-adbc-replay adapts this pattern to ADBC cursor interactions: the "request" is a SQL query with parameters, and the "response" is an Arrow record batch.
+"VCR" testing libraries record and replay HTTP interactions by capturing request/response pairs. `pytest-adbc-replay` adapts this pattern to ADBC cursor interactions: the "request" is a SQL query with parameters, and the "response" is an Arrow record batch.
 
-The VCR libraries (vcrpy, betamax) use YAML or JSON cassette files because HTTP responses are already text or JSON-serialisable. ADBC responses are Arrow batches, so the cassette format uses Arrow IPC instead. The three-file structure (.sql, .arrow, .json) maps to (request-key, response-body, request-metadata) in VCR terms.
+The VCR libraries ([vcrpy](https://vcrpy.readthedocs.io/), [betamax](https://betamax.readthedocs.io/)) use YAML or JSON cassette files because HTTP responses are already text or JSON-serialisable. ADBC responses are Arrow batches, so the cassette format uses Arrow IPC instead. The three-file structure (.sql, .arrow, .json) maps to (request-key, response-body, request-metadata) in VCR terms.
 
-Unlike HTTP VCR libraries, pytest-adbc-replay does not need to handle request matching heuristics (headers, body matching modes, URI patterns). SQL normalisation provides a deterministic match: two queries either normalise to the same canonical string or they do not. This makes cassette lookup simpler and more predictable than HTTP cassette matching.
+Unlike HTTP VCR libraries, `pytest-adbc-replay` does not need to handle request matching heuristics (headers, body matching modes, URI patterns). SQL normalisation provides a deterministic match: two queries either normalise to the same canonical string or they do not. This makes cassette lookup simpler and more predictable than HTTP cassette matching.
 
 HTTP VCR libraries also face the challenge that HTTP bodies can be large and binary (images, compressed data). For ADBC, both the request (SQL) and response (Arrow batch) are well-structured data that serialise cleanly to domain-appropriate formats.
 

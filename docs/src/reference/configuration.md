@@ -10,7 +10,7 @@ All configuration surfaces for the plugin.
 | `adbc_cassette_dir` | ini key (str) | `tests/cassettes` | Directory where cassette subdirectories are stored. Relative to the pytest rootdir. |
 | `adbc_record_mode` | ini key (str) | `none` | Default record mode. Overridden by `--adbc-record` for a single run. |
 | `adbc_dialect` | ini key (linelist) | `[]` | SQL dialect for normalisation passed to sqlglot. Bare value = global fallback. Per-driver form: `driver_name: dialect`. Empty = auto-detect. |
-| `adbc_auto_patch` | ini key (str) | `""` | Space-separated list of ADBC driver module names whose `connect()` function is intercepted automatically. Only active for tests with `@pytest.mark.adbc_cassette`. |
+| `adbc_auto_patch` | ini key (linelist) | `[]` | List of ADBC driver module names whose `connect()` function is intercepted automatically. Only active for tests with `@pytest.mark.adbc_cassette`. |
 | `adbc_scrub_keys` | ini key (linelist) | `[]` | Parameter key names to redact from `.json` cassette files. Global form: space-separated keys. Per-driver form: `driver_name: key1 key2`. |
 
 ## pyproject.toml
@@ -20,7 +20,7 @@ All configuration surfaces for the plugin.
 adbc_cassette_dir = "tests/cassettes"
 adbc_record_mode = "none"
 adbc_dialect = []  # e.g. ["adbc_driver_snowflake.dbapi: snowflake", "adbc_driver_duckdb.dbapi: duckdb"]
-adbc_auto_patch = ""  # e.g. "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi"
+adbc_auto_patch = []  # e.g. ["adbc_driver_duckdb.dbapi", "adbc_driver_snowflake.dbapi"]
 adbc_scrub_keys = []  # e.g. ["token password", "adbc_driver_snowflake: account_id"]
 ```
 
@@ -110,13 +110,28 @@ When both are set, the CLI flag wins for that session only.
 
 ### Automatic patching
 
-`adbc_auto_patch` accepts a space-separated list of Python module names, e.g.:
+`adbc_auto_patch` is a `linelist` ini key. Each line is a Python module name that exposes `connect()` at its top level — for ADBC drivers this is always `adbc_driver_<name>.dbapi`.
 
-```
-adbc_auto_patch = adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi
-```
+=== "pyproject.toml"
 
-Each value must be the module that exposes `connect()` at its top level — for ADBC drivers this is always `adbc_driver_<name>.dbapi`. See [Finding the right module path](../how-to/configure-via-ini.md#finding-the-right-module-path).
+    ```toml
+    [tool.pytest.ini_options]
+    adbc_auto_patch = [
+        "adbc_driver_duckdb.dbapi",
+        "adbc_driver_snowflake.dbapi",
+    ]
+    ```
+
+=== "pytest.ini"
+
+    ```ini
+    [pytest]
+    adbc_auto_patch =
+        adbc_driver_duckdb.dbapi
+        adbc_driver_snowflake.dbapi
+    ```
+
+See [Finding the right module path](../how-to/configure-via-ini.md#finding-the-right-module-path).
 
 Key behaviours:
 

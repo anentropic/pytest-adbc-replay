@@ -81,12 +81,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addini(
         "adbc_auto_patch",
         help=(
-            "Space-separated list of ADBC driver module names whose connect() is "
-            "intercepted automatically for tests with @pytest.mark.adbc_cassette. "
-            "Example: adbc_driver_snowflake adbc_driver_duckdb.dbapi"
+            "List of ADBC driver module names whose connect() is intercepted "
+            "automatically for tests with @pytest.mark.adbc_cassette. "
+            "One driver per line (pytest.ini) or a TOML array (pyproject.toml). "
+            "Example: adbc_driver_snowflake"
         ),
-        type="string",
-        default="",
+        type="linelist",
+        default=[],
     )
     parser.addini(
         "adbc_scrub_keys",
@@ -212,8 +213,7 @@ def _build_session_from_config(config: pytest.Config) -> ReplaySession:
 
 def pytest_sessionstart(session: pytest.Session) -> None:
     """Monkeypatch ADBC driver connect() for each driver in adbc_auto_patch."""
-    raw: str = cast("str", session.config.getini("adbc_auto_patch")) or ""
-    driver_names = [d.strip() for d in raw.split() if d.strip()]
+    driver_names: list[str] = cast("list[str]", session.config.getini("adbc_auto_patch"))
 
     if not driver_names:
         return

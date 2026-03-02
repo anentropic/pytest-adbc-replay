@@ -9,7 +9,7 @@ Set plugin defaults in `pyproject.toml` or `pytest.ini` so you do not have to pa
 | `adbc_cassette_dir` | ini key (str) | `tests/cassettes` | Directory where cassette subdirectories are stored. Relative to the pytest rootdir. |
 | `adbc_record_mode` | ini key (str) | `none` | Default record mode. Overridden by `--adbc-record` for a single run. |
 | `adbc_dialect` | ini key (linelist) | `[]` | SQL dialect for sqlglot normalisation. Bare value = global fallback. Per-driver form: `driver_name: dialect`. Empty = auto-detect. |
-| `adbc_auto_patch` | ini key (str) | `""` | Space-separated list of ADBC driver module paths to monkeypatch. Enables zero-conftest record/replay. |
+| `adbc_auto_patch` | ini key (linelist) | `[]` | List of ADBC driver module paths to monkeypatch. Enables zero-conftest record/replay. |
 | `--adbc-record` | CLI flag | `none` | Record mode for one run. Choices: `none`, `once`, `new_episodes`, `all`. |
 
 ## pyproject.toml
@@ -22,7 +22,10 @@ adbc_dialect = [
     "snowflake",                       # global fallback
     "adbc_driver_duckdb: duckdb",      # per-driver override
 ]
-adbc_auto_patch = "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi"
+adbc_auto_patch = [
+    "adbc_driver_duckdb.dbapi",
+    "adbc_driver_snowflake.dbapi",
+]
 ```
 
 ## pytest.ini
@@ -34,7 +37,9 @@ adbc_record_mode = none
 adbc_dialect =
     snowflake
     adbc_driver_duckdb: duckdb
-adbc_auto_patch = adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi
+adbc_auto_patch =
+    adbc_driver_duckdb.dbapi
+    adbc_driver_snowflake.dbapi
 ```
 
 ## When to use ini vs CLI
@@ -63,51 +68,64 @@ The path is relative to the pytest rootdir. All cassette directories are created
 
 ## Setting the SQL dialect
 
-sqlglot auto-detect works for standard SQL. Most projects need no dialect configuration. If your project uses a driver with vendor-specific SQL, configure its dialect once in ini.
+We're using [sqlglot](https://sqlglot.com/) just for AST-based SQL normalisation, so it's primarily the column and param quoting rules that matter. We would expect sqlglot to auto-detect an appropriate dialect (even if it's not exactly the one you're using, e.g PostgreSQL-compatible) for any queries containign quoted members.
 
-### Per-driver dialect config (recommended)
+### Default: auto-detect (recommended)
 
-Set dialect per driver using the linelist format:
+The default is to use sqlglot in "auto-detect" mode. With no config specified that's what will be used. Most projects should need no `adbc_dialect` configuration. If you encounter issues then you have several options for specifying the sqlglot normalisation dialect.
 
-```toml
-[tool.pytest.ini_options]
-adbc_dialect = [
-    "adbc_driver_snowflake.dbapi: snowflake",
-]
-```
+### Per-driver dialect config
 
-In `pytest.ini`:
+This is the recommended way to provide specific dialect selections.
 
-```ini
-adbc_dialect =
-    adbc_driver_snowflake.dbapi: snowflake
-```
+Accepted values are any dialect string that sqlglot recognises. Use an empty list (or omit the `adbc_dialect` key) to get the default behaviour which is to rely on sqlglot's auto-detect.
 
-Once set, any test using `adbc_driver_snowflake.dbapi` has the correct dialect applied automatically. No `dialect=` argument on individual markers.
+=== "pyproject.toml"
 
-For multiple drivers with different dialects:
+    Set dialect per driver using a list of `<driver patch path>: <dialect>` strings:
 
-```toml
-adbc_dialect = [
-    "adbc_driver_snowflake.dbapi: snowflake",
-    "adbc_driver_duckdb.dbapi: duckdb",
-]
-```
+    ```toml
+    [tool.pytest.ini_options]
+    adbc_dialect = [
+        "adbc_driver_snowflake.dbapi: snowflake",
+        "adbc_driver_duckdb.dbapi: duckdb",
+    ]
+    ```
+
+=== "pytest.ini"
+
+    Set dialect per driver using `<driver patch path>: <dialect>` strings in the ini file linelist format:
+
+    ```ini
+    adbc_dialect =
+        adbc_driver_snowflake.dbapi: snowflake
+        adbc_driver_duckdb.dbapi: duckdb
+    ```
 
 ### Global fallback
 
+(Not recommended for multi-driver scenarios, but simpler config syntax if you only use one)
+
 A bare value (no colon) sets a global default for all drivers not explicitly listed:
 
-```toml
-adbc_dialect = [
-    "snowflake",
-    "adbc_driver_duckdb.dbapi: duckdb",
-]
-```
+=== "pyproject.toml"
+
+    ```toml
+    adbc_dialect = [
+        "snowflake",
+        "adbc_driver_duckdb.dbapi: duckdb",
+    ]
+    ```
+
+=== "pytest.ini"
+
+    ```ini
+    adbc_dialect =
+        snowflake
+        adbc_driver_duckdb.dbapi: duckdb
+    ```
 
 Here, DuckDB tests get `duckdb`, and any other driver gets `snowflake`.
-
-Accepted values are any dialect string that sqlglot recognises. Use an empty list (the default) to rely on sqlglot's auto-detect.
 
 ### Per-test override (escape hatch)
 
@@ -124,16 +142,38 @@ For most projects, per-driver ini config removes the need for this on individual
 
 `adbc_auto_patch` lists the ADBC driver module paths the plugin should monkeypatch at session start. Once set, any test decorated with `@pytest.mark.adbc_cassette` will have its `connect()` calls intercepted automatically — no `conftest.py` fixture required.
 
-```toml
-[tool.pytest.ini_options]
-adbc_auto_patch = "adbc_driver_duckdb.dbapi"
-```
+=== "pyproject.toml"
 
-Multiple drivers are space-separated:
+    ```toml
+    [tool.pytest.ini_options]
+    adbc_auto_patch = ["adbc_driver_duckdb.dbapi"]
+    ```
 
-```toml
-adbc_auto_patch = "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi"
-```
+    Multiple drivers:
+
+    ```toml
+    [tool.pytest.ini_options]
+    adbc_auto_patch = [
+        "adbc_driver_duckdb.dbapi",
+        "adbc_driver_snowflake.dbapi",
+    ]
+    ```
+
+=== "pytest.ini"
+
+    ```ini
+    [pytest]
+    adbc_auto_patch = adbc_driver_duckdb.dbapi
+    ```
+
+    Multiple drivers:
+
+    ```ini
+    [pytest]
+    adbc_auto_patch =
+        adbc_driver_duckdb.dbapi
+        adbc_driver_snowflake.dbapi
+    ```
 
 With this set, a test needs only a marker:
 

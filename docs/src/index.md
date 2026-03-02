@@ -26,7 +26,7 @@ pip install adbc-driver-duckdb
 
 ```toml
 [tool.pytest.ini_options]
-adbc_auto_patch = "adbc_driver_duckdb.dbapi"
+adbc_auto_patch = ["adbc_driver_duckdb.dbapi"]
 ```
 
 `adbc_driver_duckdb.dbapi` is the module path where `connect()` lives. See [Finding the right module path](how-to/configure-via-ini.md#finding-the-right-module-path) for other drivers.
