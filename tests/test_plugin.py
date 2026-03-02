@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pytest_adbc_replay.plugin import _parse_scrub_keys
+from pytest_adbc_replay.plugin import _parse_dialect, _parse_scrub_keys
 
 if TYPE_CHECKING:
     import pytest
@@ -456,3 +456,125 @@ class TestParseScrupKeys:
         global_keys, per_driver = _parse_scrub_keys(["adbc_driver_snowflake: "])
         assert global_keys == []
         assert per_driver == {}
+
+
+class TestParseDialect:
+    """Unit tests for _parse_dialect helper (DIAL-01, DIAL-02)."""
+
+    def test_empty_lines(self) -> None:
+        """Empty input returns (None, {})."""
+        global_dialect, per_driver = _parse_dialect([])
+        assert global_dialect is None
+        assert per_driver == {}
+
+    def test_blank_line_ignored(self) -> None:
+        """Blank and whitespace-only lines are ignored."""
+        global_dialect, per_driver = _parse_dialect(["", "  "])
+        assert global_dialect is None
+        assert per_driver == {}
+
+    def test_global_bare_value(self) -> None:
+        """Bare line (no colon) sets global dialect."""
+        global_dialect, per_driver = _parse_dialect(["snowflake"])
+        assert global_dialect == "snowflake"
+        assert per_driver == {}
+
+    def test_per_driver_only(self) -> None:
+        """Colon-prefixed line sets per-driver dialect; global remains None."""
+        global_dialect, per_driver = _parse_dialect(["adbc_driver_duckdb: duckdb"])
+        assert global_dialect is None
+        assert per_driver == {"adbc_driver_duckdb": "duckdb"}
+
+    def test_global_and_per_driver(self) -> None:
+        """Global bare value and per-driver line can coexist."""
+        global_dialect, per_driver = _parse_dialect(["snowflake", "adbc_driver_duckdb: duckdb"])
+        assert global_dialect == "snowflake"
+        assert per_driver == {"adbc_driver_duckdb": "duckdb"}
+
+    def test_multiple_per_driver_lines(self) -> None:
+        """Multiple per-driver lines build separate per-driver entries."""
+        global_dialect, per_driver = _parse_dialect(
+            [
+                "adbc_driver_duckdb: duckdb",
+                "adbc_driver_snowflake: snowflake",
+            ]
+        )
+        assert global_dialect is None
+        assert per_driver == {
+            "adbc_driver_duckdb": "duckdb",
+            "adbc_driver_snowflake": "snowflake",
+        }
+
+    def test_last_bare_value_wins(self) -> None:
+        """When multiple bare lines appear, the last one is the global dialect."""
+        global_dialect, per_driver = _parse_dialect(["bigquery", "snowflake"])
+        assert global_dialect == "snowflake"
+        assert per_driver == {}
+
+    def test_per_driver_extra_whitespace(self) -> None:
+        """Leading/trailing whitespace is stripped from driver name and dialect value."""
+        global_dialect, per_driver = _parse_dialect(["  adbc_driver_duckdb :  duckdb  "])
+        assert global_dialect is None
+        assert per_driver == {"adbc_driver_duckdb": "duckdb"}
+
+
+class TestPerDriverDialect:
+    """Integration tests for per-driver dialect resolution (DIAL-01, DIAL-02)."""
+
+    def test_per_driver_dialect_applied(self, pytester: pytest.Pytester) -> None:
+        """Per-driver ini config sets the dialect for connections using that driver."""
+        pytester.makeini("[pytest]\nadbc_dialect =\n    adbc_driver_sqlite.dbapi: sqlite\n")
+        pytester.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.adbc_cassette("test_dialect_applied")
+            def test_dialect_applied(adbc_replay, request):
+                conn = adbc_replay.wrap("adbc_driver_sqlite.dbapi", request=request)
+                assert conn._dialect == "sqlite", (
+                    f"Expected sqlite, got {conn._dialect!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_global_fallback_when_no_per_driver_match(self, pytester: pytest.Pytester) -> None:
+        """Global bare value is used when no per-driver entry matches the driver."""
+        pytester.makeini("[pytest]\nadbc_dialect = snowflake\n")
+        pytester.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.adbc_cassette("test_global_fallback")
+            def test_global_fallback(adbc_replay, request):
+                conn = adbc_replay.wrap("adbc_driver_sqlite.dbapi", request=request)
+                assert conn._dialect == "snowflake", (
+                    f"Expected snowflake (global fallback), got {conn._dialect!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_explicit_arg_overrides_per_driver(self, pytester: pytest.Pytester) -> None:
+        """Explicit dialect= arg to wrap() overrides per-driver ini config."""
+        pytester.makeini("[pytest]\nadbc_dialect =\n    adbc_driver_sqlite.dbapi: sqlite\n")
+        pytester.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.adbc_cassette("test_explicit_override")
+            def test_explicit_override(adbc_replay, request):
+                conn = adbc_replay.wrap(
+                    "adbc_driver_sqlite.dbapi",
+                    request=request,
+                    dialect="bigquery",
+                )
+                assert conn._dialect == "bigquery", (
+                    f"Expected bigquery (explicit arg), got {conn._dialect!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
