@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 10 of 10 (per-driver adbc_dialect config and dialect docs review)
-Plan: 1 of 3 in current phase (in progress)
+Plan: 3 of 3 in current phase (complete — pending verification)
 Status: In progress
-Last activity: 2026-03-02 — Completed 10-01 (_parse_dialect(), adbc_dialect as linelist, ReplaySession per-driver dialect resolution)
+Last activity: 2026-03-02 — Completed 10-03 (docs: configure-via-ini, configuration, markers, sql-normalisation-design, multiple-drivers)
 
 Progress: [██████████] 100% (9/9 phases)
 

@@ -195,5 +195,5 @@ Plans:
 
 Plans:
 - [x] 10-01-PLAN.md — Core implementation: _parse_dialect(), adbc_dialect as linelist, ReplaySession per-driver dialect resolution
-- [ ] 10-02-PLAN.md — Test suite: _parse_dialect unit tests, per-driver dialect integration tests (TDD)
-- [ ] 10-03-PLAN.md — Documentation updates: configure-via-ini, reference/configuration, markers, sql-normalisation-design, multiple-drivers
+- [x] 10-02-PLAN.md — Test suite: _parse_dialect unit tests, per-driver dialect integration tests (TDD)
+- [x] 10-03-PLAN.md — Documentation updates: configure-via-ini, reference/configuration, markers, sql-normalisation-design, multiple-drivers
