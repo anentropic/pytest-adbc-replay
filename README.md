@@ -114,6 +114,7 @@ Commit both formats to version control — query changes appear as diffs in pull
 | `adbc_record_mode` | ini key | `none` | Persistent record mode (overridden by CLI flag) |
 | `adbc_dialect` | ini key | `""` | SQL dialect for normalisation (auto-detect when empty) |
 | `adbc_auto_patch` | ini key | `""` | Space-separated list of ADBC driver module names to auto-intercept |
+| `adbc_scrub_keys` | ini key (linelist) | `[]` | Parameter key names to redact from cassette `.json` files |
 
 Minimal `pyproject.toml` snippet:
 
@@ -123,6 +124,7 @@ adbc_cassette_dir = "tests/cassettes"
 adbc_record_mode = "none"
 adbc_dialect = ""
 adbc_auto_patch = ""  # e.g. "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi"
+adbc_scrub_keys = []  # e.g. ["token password", "adbc_driver_snowflake: account_id"]
 ```
 
 ## Record Modes
@@ -134,11 +136,46 @@ adbc_auto_patch = ""  # e.g. "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dba
 | `new_episodes` | Replay existing interactions, record new ones. |
 | `all` | Re-record everything on every run. |
 
+## Scrubbing Sensitive Values
+
+To keep credentials out of cassette files, list parameter key names in `adbc_scrub_keys`:
+
+```toml
+[tool.pytest.ini_options]
+adbc_scrub_keys = ["token password api_key"]
+```
+
+Matched values become `REDACTED` in the `.json` cassette file. Per-driver form:
+
+```toml
+adbc_scrub_keys = [
+    "token",
+    "adbc_driver_snowflake: account_id warehouse",
+]
+```
+
+For custom scrubbing logic, override the `adbc_scrubber` fixture in your `conftest.py`:
+
+```python
+import pytest
+
+
+@pytest.fixture(scope="session")
+def adbc_scrubber():
+    def scrub(params: dict | None, driver_name: str) -> dict | None:
+        if not isinstance(params, dict):
+            return params
+        return {k: "REDACTED" if k.endswith("_key") else v for k, v in params.items()}
+
+    return scrub
+```
+
+Config scrubbing runs first; the fixture callable receives the already-config-scrubbed params.
+
 ## Advanced
 
-`adbc_scrubber` is a session-scoped fixture that accepts a callable for scrubbing sensitive values
-(tokens, passwords) from cassettes before they are written to disk. `adbc_param_serialisers` is a
-session-scoped fixture for registering custom parameter serialisers for types not handled by default.
+`adbc_param_serialisers` is a session-scoped fixture for registering custom parameter serialisers
+for types not handled by default.
 
 Full reference documentation: [https://TODO.github.io/pytest-adbc-replay](https://TODO.github.io/pytest-adbc-replay)
 

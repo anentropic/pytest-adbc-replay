@@ -1,15 +1,48 @@
 # Scrub sensitive values from cassettes
 
-!!! warning "Not yet active in v1"
-    The `adbc_scrubber` interface is reserved for a future v1.x release. Registering a scrubber in v1 has no effect — the callback is stored but never called. No scrubbing happens automatically either.
+Cassettes are committed to version control. If your tests pass sensitive values as query parameters
+(API tokens, passwords, account IDs), you will want to scrub those values before they are written
+to the `.json` cassette file.
 
-    If you need to keep sensitive values out of cassettes today, see [Workarounds for v1](#workarounds-for-v1) below.
+Two approaches are available: config-based key redaction via `adbc_scrub_keys`, and a fixture
+callable for custom scrubbing logic.
 
-Cassettes are committed to version control. If your tests pass sensitive values as query parameters (API tokens, passwords, account IDs), you will want to scrub those values before they are written to the `.json` cassette file.
+## Automatic scrubbing with `adbc_scrub_keys`
 
-## The planned interface
+The simplest approach is to list key names in `pyproject.toml`. Any parameter dict key matching
+a listed name will have its value replaced with `REDACTED` before the cassette is written:
 
-When scrubbing is implemented, you will override the `adbc_scrubber` fixture in your `conftest.py`:
+```toml
+[tool.pytest.ini_options]
+adbc_scrub_keys = ["token password api_key"]
+```
+
+This is a `linelist` ini key. Each line is processed as a space-separated list of key names.
+Only dictionary params are affected — positional params (lists) have no key names and are written
+unchanged.
+
+### Per-driver scrubbing
+
+To redact keys only for a specific driver, prefix the line with the driver module name and a colon:
+
+```toml
+[tool.pytest.ini_options]
+adbc_scrub_keys = [
+    "token",
+    "adbc_driver_snowflake: account_id warehouse",
+]
+```
+
+Global keys and per-driver keys are combined. The global `token` key is redacted for all drivers;
+`account_id` and `warehouse` are redacted only for `adbc_driver_snowflake`.
+
+Keys not present in the params dict are silently ignored.
+
+## Custom scrubbing with the `adbc_scrubber` fixture
+
+For logic that cannot be expressed as a key list — for example, redacting values that match a
+pattern or applying different replacements per type — override `adbc_scrubber` in your
+`conftest.py`:
 
 ```python
 import pytest
@@ -17,43 +50,36 @@ import pytest
 
 @pytest.fixture(scope="session")
 def adbc_scrubber():
-    def scrub(params):
-        if params and "token" in params:
-            return {**params, "token": "REDACTED"}
-        return params
+    def scrub(params: dict | None, driver_name: str) -> dict | None:
+        if not isinstance(params, dict):
+            return params
+        # Redact any value whose key ends with "_token"
+        return {k: "REDACTED" if k.endswith("_token") else v for k, v in params.items()}
 
     return scrub
 ```
 
-The fixture returns a callable that accepts a parameter dict (or `None`) and returns the modified dict (or `None`). Return `params` unchanged for interactions you do not want to scrub.
+The callable receives two arguments:
 
-Registering this fixture now is harmless and forward-compatible — it will take effect once scrubbing is active in v1.x.
+- `params` — the parameter dict after config-based scrubbing has already been applied
+  (or `None` if no parameters were used)
+- `driver_name` — the ADBC driver module name string (e.g. `"adbc_driver_snowflake"`)
 
-## What will get scrubbed
+Return the modified dict, or return `None` to leave the params unchanged after config scrubbing.
 
-The scrubber will apply to parameters only — the values passed to `execute()`. It will not touch the Arrow result table stored in `.arrow`. If your query returns sensitive data in the result set, you need test data that does not contain real credentials.
+### Combining both approaches
 
-## Workarounds for v1
+Config-based scrubbing (`adbc_scrub_keys`) always runs first. The fixture callable then receives
+the already-config-scrubbed params. Use config for simple key redaction and the fixture for
+everything else.
 
-Until scrubbing is active, two approaches keep sensitive values out of cassettes:
+## Scope
 
-**Use environment variables only at record time.** Pass a fixed placeholder as the parameter value rather than a real token:
+Scrubbing applies to params only — the values passed to `execute()`. The Arrow result table stored
+in `.arrow` files is not touched. If your query results contain sensitive data, use test data that
+does not include real credentials.
 
-```python
-import os
+## See also
 
-TOKEN = os.environ.get("API_TOKEN", "REDACTED")
-
-
-def test_something(cursor):
-    cursor.execute("SELECT * FROM t WHERE token = ?", [TOKEN])
-```
-
-When `API_TOKEN` is not set (CI replay mode), `TOKEN` is `"REDACTED"` — a stable value that matches what was stored in the cassette.
-
-**Use test fixtures that never touch real credentials.** For unit tests that only need the cassette to replay, there is no real connection and no real credentials — sensitive values simply never appear.
-
-## Related
-
-- [Fixtures reference](../reference/fixtures.md) — `adbc_scrubber` signature and scope
-- [Cassette Format reference](../reference/cassette-format.md) — what `.json` files contain
+- [`adbc_scrubber` fixture reference](../reference/fixtures.md) — signature, scope, return values
+- [`adbc_scrub_keys` configuration reference](../reference/configuration.md) — ini key syntax

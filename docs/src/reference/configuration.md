@@ -11,6 +11,7 @@ All configuration surfaces for the plugin.
 | `adbc_record_mode` | ini key (str) | `none` | Default record mode. Overridden by `--adbc-record` for a single run. |
 | `adbc_dialect` | ini key (str) | `""` | SQL dialect for normalisation passed to sqlglot. Empty string triggers auto-detect. Per-test override via the `adbc_cassette` marker. |
 | `adbc_auto_patch` | ini key (str) | `""` | Space-separated list of ADBC driver module names whose `connect()` function is intercepted automatically. Only active for tests with `@pytest.mark.adbc_cassette`. |
+| `adbc_scrub_keys` | ini key (linelist) | `[]` | Parameter key names to redact from `.json` cassette files. Global form: space-separated keys. Per-driver form: `driver_name: key1 key2`. |
 
 ## pyproject.toml
 
@@ -20,6 +21,7 @@ adbc_cassette_dir = "tests/cassettes"
 adbc_record_mode = "none"
 adbc_dialect = ""
 adbc_auto_patch = ""  # e.g. "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi"
+adbc_scrub_keys = []  # e.g. ["token password", "adbc_driver_snowflake: account_id"]
 ```
 
 ## pytest.ini
@@ -30,7 +32,32 @@ adbc_cassette_dir = tests/cassettes
 adbc_record_mode = none
 adbc_dialect =
 adbc_auto_patch =
+adbc_scrub_keys =
 ```
+
+### `adbc_scrub_keys`
+
+`adbc_scrub_keys` is a `linelist` ini key. Each line is either a space-separated list of global
+key names, or a per-driver line with the driver module name followed by a colon:
+
+```toml
+[tool.pytest.ini_options]
+adbc_scrub_keys = [
+    # Global: redact these keys for all drivers
+    "token password api_key",
+    # Per-driver: only for adbc_driver_snowflake
+    "adbc_driver_snowflake: account_id warehouse",
+]
+```
+
+- Global keys and per-driver keys are combined (unioned) when scrubbing for a given driver.
+- Only dictionary params are affected. List params have no key names and are written unchanged.
+- Keys not present in the params dict are silently ignored.
+- Matched values are replaced with the sentinel string `REDACTED`.
+
+Multiple global lines are merged into a single flat list. Multiple per-driver lines for the same
+driver are accumulated. See [Scrub sensitive values](../how-to/scrub-sensitive-values.md) for a
+how-to guide.
 
 ## Notes
 

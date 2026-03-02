@@ -78,34 +78,51 @@ def db_conn(adbc_replay, request):
 ## `adbc_scrubber`
 
 **Scope:** session
-**Type:** `Callable[[dict | None], dict | None] | None`
+**Type:** `Callable[[dict | None, str], dict | None] | None`
 **Default:** `None` (no scrubbing)
-**Status:** Reserved — callback is stored but not called in v1. Active in v1.x.
+**Status:** Active — called at record time for each interaction that has params
 
-`adbc_scrubber` is a reserved hook for scrubbing parameter values before they are written to the `.json` cassette file. Registering it in v1 is forward-compatible and harmless.
+`adbc_scrubber` is a hook for custom scrubbing of parameter values before they are written to the
+`.json` cassette file. It runs after config-based scrubbing (`adbc_scrub_keys`) has already been
+applied.
 
 **Signature:**
 
 ```python
-def scrub(params: dict | None) -> dict | None: ...
+def scrub(params: dict | None, driver_name: str) -> dict | None: ...
 ```
 
-The callable will receive the parameter dict passed to `cursor.execute()` (or `None` if no parameters were used) and must return the modified dict (or `None`).
+The callable receives two arguments:
+
+- `params` — the already-config-scrubbed parameter dict (or `None` if no parameters were used)
+- `driver_name` — the ADBC driver module name string (e.g. `"adbc_driver_snowflake"`)
+
+Return the modified dict to replace the params, or return `None` to leave the config-scrubbed
+params unchanged.
 
 **Override:**
 
 ```python
+import pytest
+
+
 @pytest.fixture(scope="session")
 def adbc_scrubber():
-    def scrub(params):
-        if params and "token" in params:
-            return {**params, "token": "REDACTED"}
-        return params
+    def scrub(params: dict | None, driver_name: str) -> dict | None:
+        if not isinstance(params, dict):
+            return params
+        return {k: "REDACTED" if k == "token" else v for k, v in params.items()}
 
     return scrub
 ```
 
-**Note:** The scrubber will apply to parameters only, not to the Arrow result data in `.arrow` files.
+**Interaction with `adbc_scrub_keys`:**
+
+Config scrubbing (`adbc_scrub_keys`) runs first. The fixture callable receives the already-partially-scrubbed
+params, so any keys listed in `adbc_scrub_keys` will already show as `REDACTED` in the dict the
+callable sees. Use config for simple key redaction and the fixture for anything more specific.
+
+**Note:** The scrubber applies to parameters only, not to the Arrow result data in `.arrow` files.
 
 ---
 
