@@ -5,10 +5,10 @@ milestone_name: milestone
 status: complete
 last_updated: "2026-03-02T00:00:00.000Z"
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 22
-  completed_plans: 22
+  total_phases: 9
+  completed_phases: 9
+  total_plans: 25
+  completed_plans: 25
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** CI tests pass without warehouse credentials -- record once locally, replay everywhere, with query changes visible as plain diffs in PRs.
-**Current focus:** Phase 8 — Automatic ADBC Wrapping (complete)
+**Current focus:** Phase 9 — adbc_scrubber implementation (complete)
 
 ## Current Position
 
-Phase: 8 of 8 (Automatic ADBC Wrapping)
+Phase: 9 of 9 (adbc_scrubber + adbc_scrub_keys)
 Plan: 3 of 3 in current phase (complete)
 Status: Complete
-Last activity: 2026-03-02 — Completed 08-03 (docs updated: README, tutorial, how-to, reference)
+Last activity: 2026-03-02 — Completed 09-03 (docs updated: scrub how-to, fixtures ref, config ref, README)
 
-Progress: [██████████] 100%
+Progress: [██████████] 100% (9/9 phases)
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: [██████████] 100%
 | 6. MkDocs Site | 5 | — | — |
 | 7. Publishing Automation | 3/3 done | ~4min | ~1-2min |
 | 8. Automatic ADBC Wrapping | 3/3 done | ~80min | ~27min |
+| 9. adbc_scrubber + adbc_scrub_keys | 3/3 done | — | — |
 
 ## Accumulated Context
 
@@ -73,6 +74,7 @@ Recent decisions affecting current work:
 ### Roadmap Evolution
 
 - Phase 8 added: Automatic ADBC Wrapping (eliminate explicit adbc_replay.wrap(conn) conftest step)
+- Phase 9 added: implement and document the adbc_scrubber interface, consider if we can offer a default scrubbing already enabled perhaps with keys specified via config
 
 ### Pending Todos
 
@@ -81,6 +83,15 @@ None.
 ### Blockers/Concerns
 
 None.
+
+### Phase 9 Decisions
+
+- `adbc_scrub_keys` is a `linelist` ini key (not dotted subkeys). Lines with `:` are per-driver; lines without `:` are global. Multiple lines of the same form accumulate.
+- Scrubbing only affects dict params — list/None params pass through unchanged (no key names to match).
+- Sentinel value is `"REDACTED"` (fixed string, not configurable in v1).
+- Pipeline order: config scrubbing (`adbc_scrub_keys`) runs first; `adbc_scrubber` callable receives already-config-scrubbed params. Fixture returning `None` keeps the config result unchanged.
+- `adbc_scrubber` two-arg signature: `scrub(params, driver_name) -> dict | None`. Allows per-driver logic inside the fixture without separate fixtures.
+- Tests use direct `ReplayCursor` + mock cursor for cassette JSON inspection (avoids SQLite dict-param limitations); pytester used for plugin config wire-up tests only.
 
 ### Phase 8 Decisions
 
@@ -93,5 +104,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Phase 8 complete — all 3 plans executed, 138 tests pass, mkdocs build passes
+Stopped at: Phase 9 complete — all 3 plans executed, 188 tests pass, mkdocs build passes
 Resume file: None (phase complete)
