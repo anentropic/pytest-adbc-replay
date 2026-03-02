@@ -105,3 +105,57 @@ class ReplaySession:
             dialect=resolved_dialect,
             param_serialisers=resolved_serialisers,
         )
+
+    def wrap_from_item(
+        self,
+        driver_module_name: str,
+        item: pytest.Item,
+        db_kwargs: dict[str, object] | None = None,
+    ) -> ReplayConnection:
+        """
+        Create a ReplayConnection for a test item (not a FixtureRequest).
+
+        Used by the monkeypatched connect() to resolve cassette path from the
+        currently-running test item without needing a FixtureRequest. Per-driver
+        cassette subdirectory is always applied.
+
+        Args:
+            driver_module_name: ADBC driver module name (e.g. "adbc_driver_snowflake").
+                Appended as the final cassette path segment for per-driver separation.
+            item: The currently-running pytest test item.
+            db_kwargs: Keyword arguments forwarded to the real driver in record mode.
+
+        Returns:
+            ReplayConnection ready for use in the test.
+        """
+        # Lazy import to avoid circular imports at module level
+        from pytest_adbc_replay._connection import ReplayConnection  # noqa: PLC0415
+
+        # Priority: marker dialect > session global > None
+        resolved_dialect: str | None = self.dialect
+
+        marker = item.get_closest_marker("adbc_cassette")
+        if marker is not None:
+            resolved_dialect = marker.kwargs.get("dialect", resolved_dialect)
+            if marker.args:
+                # Named cassette: cassette_dir / name / driver_module_name
+                cassette_path = self.cassette_dir / str(marker.args[0]) / driver_module_name
+            else:
+                # No name argument: derive from node ID with driver subdir
+                cassette_path = node_id_to_cassette_path(
+                    item.nodeid, self.cassette_dir, driver_module_name=driver_module_name
+                )
+        else:
+            # No marker: derive from node ID with driver subdir
+            cassette_path = node_id_to_cassette_path(
+                item.nodeid, self.cassette_dir, driver_module_name=driver_module_name
+            )
+
+        return ReplayConnection(
+            driver_module_name=driver_module_name,
+            db_kwargs=db_kwargs or {},
+            mode=self.mode,
+            cassette_path=cassette_path,
+            dialect=resolved_dialect,
+            param_serialisers=self.param_serialisers,
+        )

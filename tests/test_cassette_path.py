@@ -65,3 +65,59 @@ class TestNodeIdToCassettePath:
         """Node IDs without tests/ prefix work without stripping."""
         result = node_id_to_cassette_path("test_basic.py::test_fn", _BASE)
         assert result == _BASE / "test_basic" / "test_fn"
+
+
+class TestDriverModuleNameSubdir:
+    """Tests for per-driver cassette subdirectory support (Phase 8)."""
+
+    def test_driver_subdir_appended(self) -> None:
+        """driver_module_name is appended as the final path component."""
+        result = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            driver_module_name="adbc_driver_snowflake",
+        )
+        assert result == _BASE / "test_foo" / "test_bar" / "adbc_driver_snowflake"
+
+    def test_driver_subdir_none_unchanged(self) -> None:
+        """When driver_module_name is None, result is unchanged from existing behaviour."""
+        result_with_none = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            driver_module_name=None,
+        )
+        result_default = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+        )
+        assert result_with_none == result_default == _BASE / "test_foo" / "test_bar"
+
+    def test_driver_full_name_preserved(self) -> None:
+        """Full module name used verbatim — not shortened or slugified."""
+        result = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            driver_module_name="adbc_driver_snowflake",
+        )
+        # Final segment must be the full module name, not shortened
+        assert result.name == "adbc_driver_snowflake"
+
+    def test_driver_subdir_with_dotted_module_name(self) -> None:
+        """Driver module names with dots (e.g. adbc_driver_sqlite.dbapi) are preserved verbatim."""
+        result = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            driver_module_name="adbc_driver_sqlite.dbapi",
+        )
+        assert result == _BASE / "test_foo" / "test_bar" / "adbc_driver_sqlite.dbapi"
+
+    def test_driver_subdir_with_nested_node_id(self) -> None:
+        """Per-driver subdir appended after full node path including class name."""
+        result = node_id_to_cassette_path(
+            "tests/foo/test_bar.py::TestClass::test_method",
+            _BASE,
+            driver_module_name="adbc_driver_duckdb",
+        )
+        assert result == (
+            _BASE / "foo" / "test_bar" / "TestClass" / "test_method" / "adbc_driver_duckdb"
+        )

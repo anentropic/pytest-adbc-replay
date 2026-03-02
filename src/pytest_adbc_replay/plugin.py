@@ -2,14 +2,42 @@
 
 from __future__ import annotations
 
+import contextlib
+import importlib
+import threading
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
 from pytest_adbc_replay._session import ReplaySession
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
 _RECORD_MODES = ("none", "once", "new_episodes", "all")
+
+# --- Auto-patch state -----------------------------------------------------------
+# Use a mutable container to hold state that changes after module load,
+# avoiding basedpyright's reportConstantRedefinition on uppercase module globals.
+
+_auto_patch_state: dict[str, Any] = {
+    # Currently-running test item; set in pytest_runtest_setup, cleared in teardown.
+    "current_item": None,
+    # Session-level ReplaySession instance, set by adbc_replay fixture.
+    "session_state": None,
+}
+
+_ITEM_LOCK = threading.Lock()
+
+# Open connections per test item (keyed by id(item)) for auto-close in teardown.
+_OPEN_CONNECTIONS: dict[int, list[Any]] = {}
+
+# Original connect() functions before monkeypatching, keyed by driver module name.
+_ORIGINAL_CONNECTS: dict[str, Any] = {}
+
+
+# --- Registration ---------------------------------------------------------------
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -46,6 +74,16 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         type="string",
         default="",
     )
+    parser.addini(
+        "adbc_auto_patch",
+        help=(
+            "Space-separated list of ADBC driver module names whose connect() is "
+            "intercepted automatically for tests with @pytest.mark.adbc_cassette. "
+            "Example: adbc_driver_snowflake adbc_driver_duckdb.dbapi"
+        ),
+        type="string",
+        default="",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -59,6 +97,73 @@ def pytest_configure(config: pytest.Config) -> None:
             "dialect: sqlglot dialect string for SQL normalisation (e.g. 'snowflake')."
         ),
     )
+
+
+# --- Auto-patch hooks -----------------------------------------------------------
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Monkeypatch ADBC driver connect() for each driver in adbc_auto_patch."""
+    raw: str = cast("str", session.config.getini("adbc_auto_patch")) or ""
+    driver_names = [d.strip() for d in raw.split() if d.strip()]
+
+    for driver_name in driver_names:
+        try:
+            driver_mod = importlib.import_module(driver_name)
+        except ImportError:
+            # Driver not installed — skip silently (supports replay-only environments)
+            continue
+
+        original_connect = driver_mod.connect
+        _ORIGINAL_CONNECTS[driver_name] = original_connect
+
+        def _make_patched(dn: str, orig: Any) -> Any:
+            def _patched_connect(**kwargs: Any) -> Any:
+                with _ITEM_LOCK:
+                    item = _auto_patch_state["current_item"]
+
+                if item is None:
+                    # Called outside a test — pass through to real driver
+                    return orig(**kwargs)
+
+                marker = item.get_closest_marker("adbc_cassette")
+                if marker is None:
+                    # No cassette marker — pass through to real driver
+                    return orig(**kwargs)
+
+                # Retrieve the session-scoped ReplaySession
+                session_obj = _auto_patch_state["session_state"]
+                if session_obj is None:
+                    # adbc_replay fixture not yet initialized — pass through
+                    return orig(**kwargs)
+
+                conn = session_obj.wrap_from_item(dn, item, db_kwargs=dict(kwargs))
+                with _ITEM_LOCK:
+                    _OPEN_CONNECTIONS.setdefault(id(item), []).append(conn)
+                return conn
+
+            return _patched_connect
+
+        setattr(driver_mod, "connect", _make_patched(driver_name, original_connect))  # noqa: B010
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Track the currently-running test item for monkeypatched connect() resolution."""
+    with _ITEM_LOCK:
+        _auto_patch_state["current_item"] = item
+
+
+def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> None:  # noqa: ARG001
+    """Clear current item and close all connections opened during this test."""
+    with _ITEM_LOCK:
+        _auto_patch_state["current_item"] = None
+    connections = _OPEN_CONNECTIONS.pop(id(item), [])
+    for conn in connections:
+        with contextlib.suppress(Exception):
+            conn.close()
+
+
+# --- Header and fixtures --------------------------------------------------------
 
 
 def pytest_report_header(config: pytest.Config) -> str:
@@ -159,10 +264,55 @@ def adbc_replay(
     raw_dialect: str = cast("str", request.config.getini("adbc_dialect"))
     dialect: str | None = raw_dialect if raw_dialect else None
 
-    return ReplaySession(
+    session = ReplaySession(
         mode=mode,
         cassette_dir=cassette_dir,
         param_serialisers=adbc_param_serialisers,
         scrubber=adbc_scrubber,
         dialect=dialect,
     )
+    _auto_patch_state["session_state"] = session
+    return session
+
+
+@pytest.fixture
+def adbc_connect(
+    adbc_replay: ReplaySession,
+    request: pytest.FixtureRequest,
+) -> Generator[Any, None, None]:
+    """
+    Function-scoped factory fixture for creating ADBC replay connections explicitly.
+
+    Use this as the escape hatch when ``adbc_auto_patch`` is not appropriate --
+    for example, when you need a session-scoped or module-scoped connection, or
+    when you prefer explicit control over connection creation.
+
+    Returns a callable: ``(driver_module_name: str, **db_kwargs) -> ReplayConnection``
+
+    The fixture closes all opened connections when the test finishes. Cassette
+    paths follow the per-driver subdirectory layout used by auto-patch.
+
+    Example::
+
+        @pytest.mark.adbc_cassette("my_test")
+        def test_my_query(adbc_connect):
+            conn = adbc_connect("adbc_driver_snowflake.dbapi", uri=os.environ["SF_URI"])
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+    """
+    opened: list[Any] = []
+
+    def _factory(driver_module_name: str, **db_kwargs: Any) -> Any:
+        conn = adbc_replay.wrap_from_item(
+            driver_module_name,
+            request.node,
+            db_kwargs=db_kwargs,
+        )
+        opened.append(conn)
+        return conn
+
+    yield _factory
+
+    for conn in opened:
+        with contextlib.suppress(Exception):
+            conn.close()
