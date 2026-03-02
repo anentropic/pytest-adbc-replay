@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-01T17:13:08.291Z"
+status: complete
+last_updated: "2026-03-02T00:00:00.000Z"
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 19
-  completed_plans: 19
+  total_phases: 8
+  completed_phases: 8
+  total_plans: 22
+  completed_plans: 22
 ---
 
 # Project State
@@ -18,21 +18,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** CI tests pass without warehouse credentials -- record once locally, replay everywhere, with query changes visible as plain diffs in PRs.
-**Current focus:** Phase 7 — Publishing Automation (in progress)
+**Current focus:** Phase 8 — Automatic ADBC Wrapping (complete)
 
 ## Current Position
 
-Phase: 7 of 7 (Publishing Automation)
+Phase: 8 of 8 (Automatic ADBC Wrapping)
 Plan: 3 of 3 in current phase (complete)
 Status: Complete
-Last activity: 2026-03-01 — Completed 07-03 (release.yml rewritten: quality gate, cookiecutter bug fixed, GitHub Release job added)
+Last activity: 2026-03-02 — Completed 08-03 (docs updated: README, tutorial, how-to, reference)
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 17
+- Total plans completed: 22
 - Average duration: ~2min
 - Total execution time: unknown
 
@@ -47,10 +47,7 @@ Progress: [██████████] 100%
 | 5. README and CHANGELOG | 1 | 2min | 2min |
 | 6. MkDocs Site | 5 | — | — |
 | 7. Publishing Automation | 3/3 done | ~4min | ~1-2min |
-
-*Updated after each plan completion*
-| Phase 07-publishing-automation P02 | 1min | 2 tasks | 2 files |
-| Phase 07-publishing-automation P03 | 1min | 1 task | 1 file |
+| 8. Automatic ADBC Wrapping | 3/3 done | ~80min | ~27min |
 
 ## Accumulated Context
 
@@ -85,8 +82,16 @@ None.
 
 None.
 
+### Phase 8 Decisions
+
+- Used `_auto_patch_state: dict[str, Any]` container instead of uppercase module globals to avoid basedpyright `reportConstantRedefinition` errors when reassigning in hooks
+- Eagerly initialized `ReplaySession` in `pytest_sessionstart` from config so auto-patch works even before any test requests the `adbc_replay` fixture
+- Added `connect_fn` parameter to `ReplayConnection.__init__` to prevent infinite recursion when auto-patch has replaced `driver.connect` — the patched closure passes the original callable
+- Per-driver cassette subdir always applied in `wrap_from_item()` — no opt-out needed
+- `adbc_connect` fixture is function-scoped; session/module-scoped connections must use `adbc_replay.wrap()` explicitly
+
 ## Session Continuity
 
 Last session: 2026-03-02
-Stopped at: Phase 8 context gathered (automatic ADBC wrapping — monkeypatch + adbc_connect fixture + per-driver cassette subdirs)
-Resume file: .planning/phases/08-automatic-adbc-wrapping/08-CONTEXT.md
+Stopped at: Phase 8 complete — all 3 plans executed, 138 tests pass, mkdocs build passes
+Resume file: None (phase complete)

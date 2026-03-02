@@ -160,6 +160,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 5. README and CHANGELOG | 1/1 | Complete | 2026-03-01 |
 | 6. MkDocs Documentation Site | 5/5 | Complete | 2026-03-01 |
 | 7. Publishing Automation | 3/3 | Complete   | 2026-03-01 |
+| 8. Automatic ADBC Wrapping | 3/3 | Complete | 2026-03-02 |
 
 ### Phase 8: Automatic ADBC Wrapping
 
@@ -169,6 +170,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 **Plans:** 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Core implementation: adbc_auto_patch ini key, monkeypatch hooks, wrap_from_item(), per-driver cassette path, adbc_connect fixture
-- [ ] 08-02-PLAN.md — Test suite: pytester-based tests for auto-interception, pass-through, per-driver layout, adbc_connect escape hatch
-- [ ] 08-03-PLAN.md — Documentation updates: README, tutorial, how-to guides, reference pages
+- [x] 08-01-PLAN.md — Core implementation: adbc_auto_patch ini key, monkeypatch hooks, wrap_from_item(), per-driver cassette path, adbc_connect fixture
+- [x] 08-02-PLAN.md — Test suite: pytester-based tests for auto-interception, pass-through, per-driver layout, adbc_connect escape hatch
+- [x] 08-03-PLAN.md — Documentation updates: README, tutorial, how-to guides, reference pages
