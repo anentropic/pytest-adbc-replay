@@ -4,7 +4,7 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+      - 'v[0-9]+.[0-9]+.[0-9]+[a-z]*'
 
 permissions:
   contents: read
@@ -152,4 +152,4 @@ jobs:
           files: dist/*
           body_path: changelog/CHANGELOG.md
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc') }}
