@@ -73,6 +73,10 @@ Recent decisions affecting current work:
 - Phase 7 Plan 03: softprops/action-gh-release@v2 chosen for GitHub Release creation; github-release job depends on both publish and changelog
 - Phase 7 Plan 03: contents: write permission scoped only to github-release job; top-level default remains contents: read
 
+### Roadmap Evolution
+
+- Phase 8 added: Automatic ADBC Wrapping (eliminate explicit adbc_replay.wrap(conn) conftest step)
+
 ### Pending Todos
 
 None.

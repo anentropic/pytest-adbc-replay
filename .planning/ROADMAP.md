@@ -160,3 +160,13 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 5. README and CHANGELOG | 1/1 | Complete | 2026-03-01 |
 | 6. MkDocs Documentation Site | 5/5 | Complete | 2026-03-01 |
 | 7. Publishing Automation | 3/3 | Complete   | 2026-03-01 |
+
+### Phase 8: Automatic ADBC Wrapping
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 8 to break down)
