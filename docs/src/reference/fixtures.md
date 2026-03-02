@@ -80,8 +80,9 @@ def db_conn(adbc_replay, request):
 **Scope:** session
 **Type:** `Callable[[dict | None], dict | None] | None`
 **Default:** `None` (no scrubbing)
+**Status:** Reserved — callback is stored but not called in v1. Active in v1.x.
 
-`adbc_scrubber` is an optional hook for scrubbing parameter values before they are written to the `.json` cassette file.
+`adbc_scrubber` is a reserved hook for scrubbing parameter values before they are written to the `.json` cassette file. Registering it in v1 is forward-compatible and harmless.
 
 **Signature:**
 
@@ -89,7 +90,7 @@ def db_conn(adbc_replay, request):
 def scrub(params: dict | None) -> dict | None: ...
 ```
 
-The callable receives the parameter dict passed to `cursor.execute()` (or `None` if no parameters were used) and must return the modified dict (or `None`).
+The callable will receive the parameter dict passed to `cursor.execute()` (or `None` if no parameters were used) and must return the modified dict (or `None`).
 
 **Override:**
 
@@ -104,7 +105,7 @@ def adbc_scrubber():
     return scrub
 ```
 
-**Note:** The scrubber applies to parameters only, not to the Arrow result data in `.arrow` files.
+**Note:** The scrubber will apply to parameters only, not to the Arrow result data in `.arrow` files.
 
 ---
 

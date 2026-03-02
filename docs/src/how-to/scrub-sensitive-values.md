@@ -1,14 +1,15 @@
 # Scrub sensitive values from cassettes
 
-Cassettes are committed to version control. If your tests pass sensitive values as query parameters (API tokens, passwords, account IDs), you can scrub those values before they are written to the `.json` cassette file.
+!!! warning "Not yet active in v1"
+    The `adbc_scrubber` interface is reserved for a future v1.x release. Registering a scrubber in v1 has no effect — the callback is stored but never called. No scrubbing happens automatically either.
 
-## When this matters
+    If you need to keep sensitive values out of cassettes today, see [Workarounds for v1](#workarounds-for-v1) below.
 
-The `.json` file in each cassette interaction stores the parameters passed to `cursor.execute()`. If a test passes an API token as a parameter, that token ends up in the cassette. Scrubbing replaces it with a placeholder before the file is written.
+Cassettes are committed to version control. If your tests pass sensitive values as query parameters (API tokens, passwords, account IDs), you will want to scrub those values before they are written to the `.json` cassette file.
 
-## Implement a scrubber
+## The planned interface
 
-Override the `adbc_scrubber` fixture in your `conftest.py`:
+When scrubbing is implemented, you will override the `adbc_scrubber` fixture in your `conftest.py`:
 
 ```python
 import pytest
@@ -24,30 +25,33 @@ def adbc_scrubber():
     return scrub
 ```
 
-The fixture must return a callable that accepts a parameter dict (or `None`) and returns the modified dict (or `None`). Return the original `params` unchanged for interactions you do not want to scrub.
+The fixture returns a callable that accepts a parameter dict (or `None`) and returns the modified dict (or `None`). Return `params` unchanged for interactions you do not want to scrub.
 
-## What gets scrubbed
+Registering this fixture now is harmless and forward-compatible — it will take effect once scrubbing is active in v1.x.
 
-The scrubber applies to parameters only — the values passed to `execute()`. It does not touch the Arrow result table stored in `.arrow`. If your query returns sensitive data in the result set, you need a different approach (for example, using test data that does not contain real credentials).
+## What will get scrubbed
 
-## Consistent placeholders
+The scrubber will apply to parameters only — the values passed to `execute()`. It will not touch the Arrow result table stored in `.arrow`. If your query returns sensitive data in the result set, you need test data that does not contain real credentials.
 
-!!! warning
-    The scrubbed value is what gets stored in the cassette and compared on replay. If you record with `token = "REDACTED"` but replay with `token = "some-real-value"`, the cassette key lookup will fail because parameters are part of the interaction key.
+## Workarounds for v1
 
-Use a consistent placeholder across all runs. If your scrubber replaces the token with `"REDACTED"`, then any test running against the cassette must also pass `"REDACTED"` — or use a separate cassette recorded with the same placeholder.
+Until scrubbing is active, two approaches keep sensitive values out of cassettes:
 
-In practice, the easiest pattern is to scrub values that are only present at record time and not present at replay time (because in `none` mode, the real token is never used anyway).
+**Use environment variables only at record time.** Pass a fixed placeholder as the parameter value rather than a real token:
 
-## Checking that scrubbing worked
+```python
+import os
 
-After recording, open the `.json` file in the cassette directory and confirm the sensitive value is not present:
+TOKEN = os.environ.get("API_TOKEN", "REDACTED")
 
-```bash
-cat tests/cassettes/my_test/000.json
+
+def test_something(cursor):
+    cursor.execute("SELECT * FROM t WHERE token = ?", [TOKEN])
 ```
 
-The file should show the placeholder value (`"REDACTED"` in the example above), not the real token. If the real value is present, the scrubber is not being called — check that the fixture is named exactly `adbc_scrubber` and is in a `conftest.py` that pytest can discover.
+When `API_TOKEN` is not set (CI replay mode), `TOKEN` is `"REDACTED"` — a stable value that matches what was stored in the cassette.
+
+**Use test fixtures that never touch real credentials.** For unit tests that only need the cassette to replay, there is no real connection and no real credentials — sensitive values simply never appear.
 
 ## Related
 
