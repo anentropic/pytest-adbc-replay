@@ -10,40 +10,38 @@ pip install pytest-adbc-replay adbc-driver-duckdb
 
 `pytest-adbc-replay` is the plugin. `adbc-driver-duckdb` is the DuckDB ADBC driver — it runs in-process, so no server setup or credentials are required.
 
-## Step 2: Write conftest.py
+## Step 2: Configure pyproject.toml
 
-Create a `conftest.py` in your project root (or your `tests/` directory if you prefer):
+Add the `adbc_auto_patch` setting to tell the plugin which driver modules to intercept:
 
-```python
-import adbc_driver_duckdb.dbapi as duckdb
-import pytest
-
-
-@pytest.fixture(scope="session")
-def db_conn(adbc_replay):
-    with duckdb.connect() as conn:
-        yield adbc_replay.wrap(conn)
+```toml
+[tool.pytest.ini_options]
+adbc_auto_patch = "adbc_driver_duckdb.dbapi"
 ```
 
-`adbc_replay` is a session-scoped fixture provided by the plugin. Calling `.wrap(conn)` on it returns a wrapped connection object that intercepts cursor calls. When recording, the plugin forwards those calls to the real connection and saves the results. When replaying, it reads the saved results and returns them without touching the database.
+This is all the setup required. No `conftest.py` is needed for the basic case.
 
 ## Step 3: Write a test
 
 Create `tests/test_example.py`:
 
 ```python
+import adbc_driver_duckdb.dbapi as duckdb
 import pytest
 
 
 @pytest.mark.adbc_cassette("first_query")
-def test_first_query(db_conn):
-    with db_conn.cursor() as cur:
+def test_first_query():
+    conn = duckdb.connect()
+    with conn.cursor() as cur:
         cur.execute("SELECT 42 AS answer")
         row = cur.fetchone()
         assert row == (42,)
 ```
 
 The `@pytest.mark.adbc_cassette("first_query")` marker sets the cassette directory name to `first_query`. Without the marker, the plugin derives a name from the test node ID, which works but tends to be longer.
+
+Because `adbc_auto_patch` lists `adbc_driver_duckdb.dbapi`, the plugin intercepts the `duckdb.connect()` call automatically for any test with `@pytest.mark.adbc_cassette`. Tests without the marker receive the real driver unchanged.
 
 ## Step 4: Record the cassette
 
@@ -72,12 +70,15 @@ Look at what was written:
 ```
 tests/cassettes/
 └── first_query/
-    ├── 000.sql      # normalised SQL
-    ├── 000.arrow    # query result as Arrow IPC
-    └── 000.json     # query parameters (null in this case)
+    └── adbc_driver_duckdb.dbapi/
+        ├── 000.sql      # normalised SQL
+        ├── 000.arrow    # query result as Arrow IPC
+        └── 000.json     # query parameters (null in this case)
 ```
 
-Open `tests/cassettes/first_query/000.sql`:
+The cassette lives in a subdirectory named after the driver module. This lets you record from multiple drivers in the same test without collisions.
+
+Open `tests/cassettes/first_query/adbc_driver_duckdb.dbapi/000.sql`:
 
 ```sql
 SELECT
@@ -86,7 +87,7 @@ SELECT
 
 This is the normalised form of your query. The plugin ran it through sqlglot to produce a canonical representation — uppercase keywords, consistent formatting. This normalised text is what gets stored and used as the cassette key on replay.
 
-Because `000.sql` is plain text, any change to your query appears as a readable diff in a pull request. If you later change `SELECT 42 AS answer` to `SELECT 42 AS answer, 'hello' AS greeting`, the diff in the PR shows exactly that addition.
+Because `000.sql` is plain text, any change to your query appears as a readable diff in a pull request.
 
 Commit the cassette directory to version control:
 
@@ -128,7 +129,7 @@ The `.arrow` file stores the full query result as an Arrow IPC file. You can rea
 ```python
 import pyarrow as pa
 
-with pa.memory_map("tests/cassettes/first_query/000.arrow", "r") as source:
+with pa.memory_map("tests/cassettes/first_query/adbc_driver_duckdb.dbapi/000.arrow", "r") as source:
     reader = pa.ipc.open_file(source)
     table = reader.read_all()
     print(table)
@@ -138,14 +139,24 @@ The table has the same schema (column names and types) as what the database retu
 
 The Arrow format is the reason you do not need to worry about type fidelity on replay. The plugin returns the exact same Arrow record batch that the database produced, with no conversion through JSON or CSV.
 
-For the tutorial example, reading `000.arrow` would show:
+## Using an explicit fixture instead
 
+For session-scoped connections, or when you need finer control over the connection lifecycle, use `adbc_replay.wrap()` from a fixture in `conftest.py`:
+
+```python
+import adbc_driver_duckdb.dbapi as duckdb
+import pytest
+
+
+@pytest.fixture(scope="session")
+def db_conn(adbc_replay, request):
+    return adbc_replay.wrap(
+        "adbc_driver_duckdb.dbapi",
+        request=request,
+    )
 ```
-pyarrow.Table
-answer: int64
-----
-answer: [[42]]
-```
+
+Tests then use `db_conn` directly instead of calling `duckdb.connect()`. Both approaches produce cassettes in the same format. See [Fixtures](../reference/fixtures.md) for the full `adbc_replay.wrap()` and `adbc_connect` reference.
 
 ## What's next
 

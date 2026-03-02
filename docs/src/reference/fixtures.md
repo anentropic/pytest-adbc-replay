@@ -1,6 +1,42 @@
 # Fixtures
 
-The plugin provides three session-scoped fixtures.
+The plugin provides four fixtures: one function-scoped factory (`adbc_connect`) and three session-scoped fixtures.
+
+---
+
+## `adbc_connect`
+
+**Scope:** function
+**Type:** `Callable[[str, **Any], ReplayConnection]`
+
+`adbc_connect` is a factory fixture for creating replay connections explicitly. It is the escape hatch for tests that cannot use `adbc_auto_patch` — for example when a session-scoped or module-scoped connection is needed, or when you prefer explicit control over connection creation.
+
+**Interface:**
+
+```text
+adbc_connect(driver_module_name: str, **db_kwargs) -> ReplayConnection
+```
+
+**Usage:**
+
+```python
+import os
+
+import pytest
+
+
+@pytest.mark.adbc_cassette("my_test")
+def test_my_query(adbc_connect):
+    conn = adbc_connect("adbc_driver_snowflake.dbapi", uri=os.environ["SNOWFLAKE_URI"])
+    with conn.cursor() as cur:
+        cur.execute("SELECT 1")
+```
+
+The fixture closes all opened connections when the test finishes.
+
+**Cassette path:** `adbc_connect` uses the per-driver cassette subdirectory layout. Cassettes are stored under `{cassette_dir}/{cassette_name}/{driver_module_name}/`.
+
+**Session-scoped connections:** `adbc_connect` is function-scoped and cannot be used directly in session-scoped fixtures. For session-scoped connections, use `adbc_replay.wrap()` instead.
 
 ---
 
@@ -14,25 +50,26 @@ The plugin provides three session-scoped fixtures.
 **Interface:**
 
 ```text
-adbc_replay.wrap(conn) -> connection
+adbc_replay.wrap(driver_module_name, db_kwargs=None, *, request=None, cassette_name=None, dialect=None) -> ReplayConnection
 ```
 
-`wrap()` accepts an ADBC connection object and returns a wrapped connection. The wrapped connection intercepts cursor calls to record or replay interactions depending on the current record mode.
+`wrap()` creates a `ReplayConnection` for the current test. Pass `request` to let the plugin resolve the cassette path from the test node ID and `@pytest.mark.adbc_cassette` marker automatically.
 
 **Usage:**
 
 ```python
-import adbc_driver_duckdb.dbapi as duckdb
 import pytest
 
 
 @pytest.fixture(scope="session")
-def db_conn(adbc_replay):
-    with duckdb.connect() as conn:
-        yield adbc_replay.wrap(conn)
+def db_conn(adbc_replay, request):
+    return adbc_replay.wrap(
+        "adbc_driver_duckdb.dbapi",
+        request=request,
+    )
 ```
 
-`wrap()` can be called multiple times for different connections. Each wrapped connection records and replays independently.
+`wrap()` can be called multiple times for different driver modules. Each `ReplayConnection` records and replays independently.
 
 **Override:** Override this fixture only if you need to customise `ReplaySession` initialisation. This is uncommon.
 

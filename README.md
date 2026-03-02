@@ -23,31 +23,29 @@ Install a DuckDB ADBC driver (no credentials needed):
 pip install adbc-driver-duckdb
 ```
 
-**`conftest.py`** — wrap your real connection with `adbc_replay.wrap()`:
+**`pyproject.toml`** — tell the plugin which drivers to intercept:
+
+```toml
+[tool.pytest.ini_options]
+adbc_auto_patch = "adbc_driver_duckdb.dbapi"
+```
+
+**`test_example.py`** — mark each test and call `connect()` normally:
 
 ```python
 import adbc_driver_duckdb.dbapi as duckdb
 import pytest
 
 
-@pytest.fixture(scope="session")
-def db_conn(adbc_replay):
-    with duckdb.connect() as conn:
-        yield adbc_replay.wrap(conn)
-```
-
-**`test_example.py`** — mark each test with a cassette name:
-
-```python
-import pytest
-
-
 @pytest.mark.adbc_cassette("my_query")
-def test_my_query(db_conn):
-    with db_conn.cursor() as cur:
+def test_my_query():
+    conn = duckdb.connect()
+    with conn.cursor() as cur:
         cur.execute("SELECT 42 AS answer")
         assert cur.fetchone() == (42,)
 ```
+
+No `conftest.py` needed. The plugin intercepts `duckdb.connect()` automatically for tests decorated with `@pytest.mark.adbc_cassette`.
 
 Record cassettes on the first run:
 
@@ -61,17 +59,49 @@ Replay from cassettes (default — no flag needed):
 pytest
 ```
 
+### Explicit conftest approach
+
+For session-scoped connections or when you prefer explicit control, use `adbc_replay.wrap()` from a fixture:
+
+```python
+import adbc_driver_duckdb.dbapi as duckdb
+import pytest
+
+
+@pytest.fixture(scope="session")
+def db_conn(adbc_replay, request):
+    return adbc_replay.wrap(
+        "adbc_driver_duckdb.dbapi",
+        request=request,
+    )
+```
+
+Both approaches produce cassettes in the same format.
+
 ## Cassette Layout
+
+**With `adbc_auto_patch`** (automatic interception):
 
 ```
 tests/cassettes/
 └── my_query/
-    ├── 000.sql      # human-readable normalised SQL
-    ├── 000.arrow    # Arrow IPC result with schema metadata
-    └── 000.json     # parameters and driver options (null when absent)
+    └── adbc_driver_duckdb.dbapi/
+        ├── 000.sql      # human-readable normalised SQL
+        ├── 000.arrow    # Arrow IPC result with schema metadata
+        └── 000.json     # parameters and driver options (null when absent)
 ```
 
-Commit the cassette directory to version control — query changes appear as diffs in pull requests.
+**With `adbc_replay.wrap()`** (explicit fixture):
+
+```
+tests/cassettes/
+└── my_query/
+    ├── 000.sql
+    ├── 000.arrow
+    └── 000.json
+```
+
+Commit both formats to version control — query changes appear as diffs in pull requests.
 
 ## Configuration Reference
 
@@ -81,6 +111,7 @@ Commit the cassette directory to version control — query changes appear as dif
 | `adbc_cassette_dir` | ini key | `tests/cassettes` | Directory to read/write cassettes |
 | `adbc_record_mode` | ini key | `none` | Persistent record mode (overridden by CLI flag) |
 | `adbc_dialect` | ini key | `""` | SQL dialect for normalisation (auto-detect when empty) |
+| `adbc_auto_patch` | ini key | `""` | Space-separated list of ADBC driver module names to auto-intercept |
 
 Minimal `pyproject.toml` snippet:
 
@@ -89,6 +120,7 @@ Minimal `pyproject.toml` snippet:
 adbc_cassette_dir = "tests/cassettes"
 adbc_record_mode = "none"
 adbc_dialect = ""
+adbc_auto_patch = ""  # e.g. "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi"
 ```
 
 ## Record Modes

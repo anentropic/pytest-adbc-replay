@@ -22,33 +22,29 @@ Install a DuckDB ADBC driver (no credentials needed):
 pip install adbc-driver-duckdb
 ```
 
-**`conftest.py`** — wrap your real connection with `adbc_replay.wrap()`:
+**`pyproject.toml`** — tell the plugin which drivers to intercept:
+
+```toml
+[tool.pytest.ini_options]
+adbc_auto_patch = "adbc_driver_duckdb.dbapi"
+```
+
+**`test_example.py`** — mark each test and call `connect()` normally:
 
 ```python
 import adbc_driver_duckdb.dbapi as duckdb
 import pytest
 
 
-@pytest.fixture(scope="session")
-def db_conn(adbc_replay):
-    with duckdb.connect() as conn:
-        yield adbc_replay.wrap(conn)
-```
-
-**`test_example.py`** — mark each test with a cassette name:
-
-```python
-import pytest
-
-
 @pytest.mark.adbc_cassette("my_query")
-def test_my_query(db_conn):
-    with db_conn.cursor() as cur:
+def test_my_query():
+    conn = duckdb.connect()
+    with conn.cursor() as cur:
         cur.execute("SELECT 42 AS answer")
         assert cur.fetchone() == (42,)
 ```
 
-Record cassettes on the first run:
+No `conftest.py` needed. Record cassettes on the first run:
 
 ```bash
 pytest --adbc-record=once
@@ -60,7 +56,7 @@ Replay from cassettes (default, no flag needed):
 pytest
 ```
 
-Cassette files land in `tests/cassettes/my_query/` — commit them to version control so CI can replay without a live database connection.
+Cassette files land in `tests/cassettes/my_query/adbc_driver_duckdb.dbapi/` — commit them to version control so CI can replay without a live database connection.
 
 ## Where to go next
 

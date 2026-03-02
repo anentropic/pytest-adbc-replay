@@ -1,5 +1,36 @@
 # Use multiple drivers in one session
 
+## Automatic patching (adbc_auto_patch)
+
+List both drivers in `adbc_auto_patch`:
+
+```toml
+[tool.pytest.ini_options]
+adbc_auto_patch = "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi"
+```
+
+Then call `connect()` in your tests directly — no fixture needed:
+
+```python
+import os
+
+import adbc_driver_duckdb.dbapi as duckdb
+import adbc_driver_snowflake.dbapi as snowflake
+import pytest
+
+
+@pytest.mark.adbc_cassette("cross_db_query")
+def test_cross_db():
+    duck = duckdb.connect()
+    snow = snowflake.connect(uri=os.environ["SNOWFLAKE_URI"])
+    # Both connections are intercepted automatically.
+    # Cassettes are stored separately per driver:
+    # tests/cassettes/cross_db_query/adbc_driver_duckdb.dbapi/000.*
+    # tests/cassettes/cross_db_query/adbc_driver_snowflake.dbapi/000.*
+```
+
+## Explicit fixture approach
+
 `adbc_replay` is session-scoped, and you can call `.wrap()` on it multiple times for different connection objects. Each wrapped connection records and replays independently.
 
 ## Two databases in one conftest

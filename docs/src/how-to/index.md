@@ -18,5 +18,5 @@ How-To guides are for specific tasks. If you are new to the plugin, start with t
 Each guide here assumes:
 
 - The plugin is installed (`pip install pytest-adbc-replay`)
-- You have a `conftest.py` that wraps your database connection with `adbc_replay.wrap()`
+- You have either set `adbc_auto_patch` in `pyproject.toml` **or** have a `conftest.py` that wraps your connection with `adbc_replay.wrap()` or `adbc_connect`
 - Your tests are decorated with `@pytest.mark.adbc_cassette` or you understand the auto-derived naming convention
