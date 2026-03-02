@@ -22,10 +22,10 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 
 ## Current Position
 
-Phase: 9 of 9 (adbc_scrubber + adbc_scrub_keys)
-Plan: 3 of 3 in current phase (complete)
-Status: Complete
-Last activity: 2026-03-02 — Completed 09-03 (docs updated: scrub how-to, fixtures ref, config ref, README)
+Phase: 10 of 10 (per-driver adbc_dialect config and dialect docs review)
+Plan: 1 of 3 in current phase (in progress)
+Status: In progress
+Last activity: 2026-03-02 — Completed 10-01 (_parse_dialect(), adbc_dialect as linelist, ReplaySession per-driver dialect resolution)
 
 Progress: [██████████] 100% (9/9 phases)
 
