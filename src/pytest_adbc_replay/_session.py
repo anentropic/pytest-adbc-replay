@@ -30,7 +30,8 @@ class ReplaySession:
         cassette_dir: Path = _DEFAULT_CASSETTE_DIR,
         param_serialisers: dict[Any, dict[str, Any]] | None = None,
         scrubber: object = None,
-        dialect: str | None = None,
+        dialect_global: str | None = None,
+        dialect_per_driver: dict[str, str] | None = None,
         scrub_keys_global: list[str] | None = None,
         scrub_keys_per_driver: dict[str, list[str]] | None = None,
     ) -> None:
@@ -38,7 +39,8 @@ class ReplaySession:
         self.cassette_dir = cassette_dir
         self.param_serialisers = param_serialisers
         self.scrubber = scrubber
-        self.dialect = dialect  # global dialect fallback from ini config
+        self.dialect_global = dialect_global  # global dialect fallback from ini config
+        self.dialect_per_driver: dict[str, str] = dialect_per_driver or {}
         self.scrub_keys_global: list[str] = scrub_keys_global or []
         self.scrub_keys_per_driver: dict[str, list[str]] = scrub_keys_per_driver or {}
 
@@ -76,8 +78,12 @@ class ReplaySession:
         from pytest_adbc_replay._connection import ReplayConnection  # noqa: PLC0415
 
         resolved_name: str | None = cassette_name
-        # Priority: explicit wrap(dialect=...) arg > session global > None
-        resolved_dialect: str | None = dialect if dialect is not None else self.dialect
+        # Priority: explicit wrap(dialect=...) arg > per-driver ini > global ini > None
+        resolved_dialect: str | None = (
+            dialect
+            if dialect is not None
+            else self.dialect_per_driver.get(driver_module_name) or self.dialect_global
+        )
 
         if request is not None:
             # Read marker from test item — method marker wins over class marker
@@ -143,8 +149,10 @@ class ReplaySession:
         # Lazy import to avoid circular imports at module level
         from pytest_adbc_replay._connection import ReplayConnection  # noqa: PLC0415
 
-        # Priority: marker dialect > session global > None
-        resolved_dialect: str | None = self.dialect
+        # Priority: marker dialect > per-driver ini > global ini > None
+        resolved_dialect: str | None = (
+            self.dialect_per_driver.get(driver_module_name) or self.dialect_global
+        )
 
         marker = item.get_closest_marker("adbc_cassette")
         if marker is not None:

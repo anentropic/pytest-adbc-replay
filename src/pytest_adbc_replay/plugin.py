@@ -70,9 +70,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
     parser.addini(
         "adbc_dialect",
-        help="Default SQL dialect for sqlglot normalisation ('' = auto-detect).",
-        type="string",
-        default="",
+        help=(
+            "SQL dialect for sqlglot normalisation. Bare value = global fallback "
+            "(e.g. 'snowflake'). Per-driver form: 'driver_name: dialect' "
+            "(e.g. 'adbc_driver_duckdb: duckdb'). Empty = auto-detect."
+        ),
+        type="linelist",
+        default=[],
     )
     parser.addini(
         "adbc_auto_patch",
@@ -146,6 +150,39 @@ def _parse_scrub_keys(lines: list[str]) -> tuple[list[str], dict[str, list[str]]
     return global_keys, per_driver_keys
 
 
+def _parse_dialect(lines: list[str]) -> tuple[str | None, dict[str, str]]:
+    """
+    Parse the adbc_dialect linelist ini value.
+
+    Each line is either:
+    - ``"snowflake"`` — bare value sets the global dialect fallback (last one wins)
+    - ``"driver_name: dialect"`` — per-driver dialect (colon-separated prefix)
+
+    Args:
+        lines: Lines from ``config.getini("adbc_dialect")``.
+
+    Returns:
+        Tuple of ``(global_dialect, per_driver_dialects)`` where ``global_dialect``
+        is a single dialect string or ``None`` and ``per_driver_dialects`` maps
+        driver module name → dialect string.
+    """
+    global_dialect: str | None = None
+    per_driver_dialects: dict[str, str] = {}
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        if ":" in line:
+            driver_part, _, dialect_part = line.partition(":")
+            driver = driver_part.strip()
+            dialect_value = dialect_part.strip()
+            if driver and dialect_value:
+                per_driver_dialects[driver] = dialect_value
+        else:
+            global_dialect = line
+    return global_dialect, per_driver_dialects
+
+
 def _build_session_from_config(config: pytest.Config) -> ReplaySession:
     """Build a ReplaySession from pytest config. Used by auto-patch initialization."""
     cli_mode = cast("str | None", config.getoption("--adbc-record"))
@@ -155,8 +192,8 @@ def _build_session_from_config(config: pytest.Config) -> ReplaySession:
     raw_cassette_dir: str = cast("str", config.getini("adbc_cassette_dir")) or "tests/cassettes"
     cassette_dir = Path(raw_cassette_dir)
 
-    raw_dialect: str = cast("str", config.getini("adbc_dialect"))
-    dialect: str | None = raw_dialect if raw_dialect else None
+    raw_dialect_lines: list[str] = cast("list[str]", config.getini("adbc_dialect")) or []
+    dialect_global, dialect_per_driver = _parse_dialect(raw_dialect_lines)
 
     raw_scrub_keys: list[str] = cast("list[str]", config.getini("adbc_scrub_keys")) or []
     global_keys, per_driver_keys = _parse_scrub_keys(raw_scrub_keys)
@@ -166,7 +203,8 @@ def _build_session_from_config(config: pytest.Config) -> ReplaySession:
         cassette_dir=cassette_dir,
         param_serialisers=None,
         scrubber=None,
-        dialect=dialect,
+        dialect_global=dialect_global,
+        dialect_per_driver=dialect_per_driver,
         scrub_keys_global=global_keys,
         scrub_keys_per_driver=per_driver_keys,
     )
@@ -345,8 +383,8 @@ def adbc_replay(
     )
     cassette_dir = Path(raw_cassette_dir)
 
-    raw_dialect: str = cast("str", request.config.getini("adbc_dialect"))
-    dialect: str | None = raw_dialect if raw_dialect else None
+    raw_dialect_lines: list[str] = cast("list[str]", request.config.getini("adbc_dialect")) or []
+    dialect_global, dialect_per_driver = _parse_dialect(raw_dialect_lines)
 
     raw_scrub_keys: list[str] = cast("list[str]", request.config.getini("adbc_scrub_keys")) or []
     global_keys, per_driver_keys = _parse_scrub_keys(raw_scrub_keys)
@@ -356,7 +394,8 @@ def adbc_replay(
         cassette_dir=cassette_dir,
         param_serialisers=adbc_param_serialisers,
         scrubber=adbc_scrubber,
-        dialect=dialect,
+        dialect_global=dialect_global,
+        dialect_per_driver=dialect_per_driver,
         scrub_keys_global=global_keys,
         scrub_keys_per_driver=per_driver_keys,
     )

@@ -286,8 +286,8 @@ class TestIniConfig:
         pytester.makepyfile(
             """
             def test_dialect(adbc_replay):
-                assert adbc_replay.dialect == "snowflake", (
-                    f"Expected snowflake, got {adbc_replay.dialect!r}"
+                assert adbc_replay.dialect_global == "snowflake", (
+                    f"Expected snowflake, got {adbc_replay.dialect_global!r}"
                 )
         """
         )
@@ -295,12 +295,12 @@ class TestIniConfig:
         result.assert_outcomes(passed=1)
 
     def test_empty_dialect_means_none(self, pytester: pytest.Pytester) -> None:
-        """CONF-03: No adbc_dialect in ini means dialect=None on ReplaySession."""
+        """CONF-03: No adbc_dialect in ini means dialect_global=None on ReplaySession."""
         pytester.makepyfile(
             """
             def test_dialect(adbc_replay):
-                assert adbc_replay.dialect is None, (
-                    f"Expected None, got {adbc_replay.dialect!r}"
+                assert adbc_replay.dialect_global is None, (
+                    f"Expected None, got {adbc_replay.dialect_global!r}"
                 )
         """
         )
