@@ -189,9 +189,11 @@ Plans:
 ### Phase 10: per-driver adbc_dialect config and dialect docs review
 
 **Goal:** `adbc_dialect` ini key becomes per-driver (e.g. `adbc_driver_snowflake: snowflake`) following the same pattern as `adbc_scrub_keys`; docs explain that the default is auto-detect, per-driver config is the usual override path, and the per-test marker dialect example is removed or reframed as an edge-case escape hatch rather than a primary workflow
-**Requirements**: TBD
+**Requirements**: DIAL-01, DIAL-02, DIAL-03
 **Depends on:** Phase 9
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 10 to break down)
+- [ ] 10-01-PLAN.md — Core implementation: _parse_dialect(), adbc_dialect as linelist, ReplaySession per-driver dialect resolution
+- [ ] 10-02-PLAN.md — Test suite: _parse_dialect unit tests, per-driver dialect integration tests (TDD)
+- [ ] 10-03-PLAN.md — Documentation updates: configure-via-ini, reference/configuration, markers, sql-normalisation-design, multiple-drivers
