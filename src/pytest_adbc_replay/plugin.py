@@ -102,10 +102,39 @@ def pytest_configure(config: pytest.Config) -> None:
 # --- Auto-patch hooks -----------------------------------------------------------
 
 
+def _build_session_from_config(config: pytest.Config) -> ReplaySession:
+    """Build a ReplaySession from pytest config. Used by auto-patch initialization."""
+    cli_mode = cast("str | None", config.getoption("--adbc-record"))
+    ini_mode: str = cast("str", config.getini("adbc_record_mode")) or "none"
+    mode: str = cli_mode if cli_mode is not None else ini_mode
+
+    raw_cassette_dir: str = cast("str", config.getini("adbc_cassette_dir")) or "tests/cassettes"
+    cassette_dir = Path(raw_cassette_dir)
+
+    raw_dialect: str = cast("str", config.getini("adbc_dialect"))
+    dialect: str | None = raw_dialect if raw_dialect else None
+
+    return ReplaySession(
+        mode=mode,
+        cassette_dir=cassette_dir,
+        param_serialisers=None,
+        scrubber=None,
+        dialect=dialect,
+    )
+
+
 def pytest_sessionstart(session: pytest.Session) -> None:
     """Monkeypatch ADBC driver connect() for each driver in adbc_auto_patch."""
     raw: str = cast("str", session.config.getini("adbc_auto_patch")) or ""
     driver_names = [d.strip() for d in raw.split() if d.strip()]
+
+    if not driver_names:
+        return
+
+    # Initialize the session state eagerly from config so it's available before
+    # the adbc_replay fixture is first requested. The adbc_replay fixture will
+    # overwrite this with an instance that includes param_serialisers/scrubber.
+    _auto_patch_state["session_state"] = _build_session_from_config(session.config)
 
     for driver_name in driver_names:
         try:
@@ -131,13 +160,10 @@ def pytest_sessionstart(session: pytest.Session) -> None:
                     # No cassette marker — pass through to real driver
                     return orig(**kwargs)
 
-                # Retrieve the session-scoped ReplaySession
-                session_obj = _auto_patch_state["session_state"]
-                if session_obj is None:
-                    # adbc_replay fixture not yet initialized — pass through
-                    return orig(**kwargs)
+                # Retrieve the session-scoped ReplaySession (always set above)
+                session_obj: ReplaySession = _auto_patch_state["session_state"]
 
-                conn = session_obj.wrap_from_item(dn, item, db_kwargs=dict(kwargs))
+                conn = session_obj.wrap_from_item(dn, item, db_kwargs=dict(kwargs), connect_fn=orig)
                 with _ITEM_LOCK:
                     _OPEN_CONNECTIONS.setdefault(id(item), []).append(conn)
                 return conn
@@ -271,6 +297,8 @@ def adbc_replay(
         scrubber=adbc_scrubber,
         dialect=dialect,
     )
+    # Overwrite the eagerly-initialized session_state (set in pytest_sessionstart)
+    # with this fully-configured instance that includes param_serialisers and scrubber.
     _auto_patch_state["session_state"] = session
     return session
 

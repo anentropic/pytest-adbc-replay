@@ -111,6 +111,7 @@ class ReplaySession:
         driver_module_name: str,
         item: pytest.Item,
         db_kwargs: dict[str, object] | None = None,
+        connect_fn: object | None = None,
     ) -> ReplayConnection:
         """
         Create a ReplayConnection for a test item (not a FixtureRequest).
@@ -124,6 +125,10 @@ class ReplaySession:
                 Appended as the final cassette path segment for per-driver separation.
             item: The currently-running pytest test item.
             db_kwargs: Keyword arguments forwarded to the real driver in record mode.
+            connect_fn: Optional callable to use instead of ``driver_module.connect()``
+                when opening a real connection in record mode. Pass the original
+                (un-patched) connect callable here to avoid recursion when the driver
+                module has been monkeypatched by the auto-patch hook.
 
         Returns:
             ReplayConnection ready for use in the test.
@@ -158,4 +163,5 @@ class ReplaySession:
             cassette_path=cassette_path,
             dialect=resolved_dialect,
             param_serialisers=self.param_serialisers,
+            connect_fn=connect_fn,
         )

@@ -31,6 +31,7 @@ class ReplayConnection:
         cassette_path: Path,
         dialect: str | None = None,
         param_serialisers: dict[Any, dict[str, Any]] | None = None,
+        connect_fn: Any = None,
     ) -> None:
         self._driver_module_name = driver_module_name
         self._db_kwargs = db_kwargs
@@ -43,9 +44,13 @@ class ReplayConnection:
         if mode != "none":
             # Only in record modes: import the driver and open a real connection.
             # This will fail loudly if the driver is not installed — expected.
-            driver = importlib.import_module(driver_module_name)
-            # ADBC drivers expose connect(**db_kwargs)
-            self._real_conn = driver.connect(**db_kwargs)
+            if connect_fn is not None:
+                # Use the provided callable (bypasses any monkeypatching of driver.connect)
+                self._real_conn = connect_fn(**db_kwargs)
+            else:
+                driver = importlib.import_module(driver_module_name)
+                # ADBC drivers expose connect(**db_kwargs)
+                self._real_conn = driver.connect(**db_kwargs)
 
     def cursor(self) -> ReplayCursor:
         """
