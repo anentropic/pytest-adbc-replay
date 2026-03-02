@@ -132,17 +132,31 @@ The fixture returns a `dict` mapping `type` to a callable. The callable receives
 
 **`NO_DEFAULT_SERIALISERS` sentinel:**
 
-Return `NO_DEFAULT_SERIALISERS` (importable from `pytest_adbc_replay`) to disable all built-in serialisers and provide a fully custom set:
+Return `NO_DEFAULT_SERIALISERS` (importable from `pytest_adbc_replay`) to disable all built-in serialisers. Combine it with `|` to also register your own types — only the types you list will be active, no built-ins are added:
 
 ```python
-from pytest_adbc_replay import NO_DEFAULT_SERIALISERS
+import decimal
+
 import pytest
+
+from pytest_adbc_replay import NO_DEFAULT_SERIALISERS
 
 
 @pytest.fixture(scope="session")
 def adbc_param_serialisers():
+    # No built-ins at all:
     return NO_DEFAULT_SERIALISERS
+
+    # Or: no built-ins, but with explicit custom types:
+    return NO_DEFAULT_SERIALISERS | {
+        decimal.Decimal: {
+            "serialise": lambda v: {"__type__": "Decimal", "value": str(v)},
+            "deserialise": lambda d: decimal.Decimal(d["value"]),
+        },
+    }
 ```
+
+This differs from returning `{decimal.Decimal: ...}` directly, which merges your entry with the built-in registry. The `NO_DEFAULT_SERIALISERS | {...}` form gives you only the types you listed.
 
 ## Related
 

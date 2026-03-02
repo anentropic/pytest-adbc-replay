@@ -8,8 +8,27 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-# Sentinel object — users return NO_DEFAULT_SERIALISERS | {their types} to start from scratch
-NO_DEFAULT_SERIALISERS: dict[type[Any], dict[str, Any]] = {}
+
+class _NoDefaultSerialisers(dict):  # type: ignore[type-arg]
+    """
+    Sentinel dict subclass.
+
+    Instances preserve sentinel identity through ``|`` merges so that
+    ``build_registry`` can detect them and skip the built-in merge::
+
+        NO_DEFAULT_SERIALISERS | {MyType: handler}
+        → _NoDefaultSerialisers({MyType: handler})
+        → build_registry returns {MyType: handler}  (no built-ins)
+    """
+
+    def __or__(self, other: dict) -> _NoDefaultSerialisers:  # type: ignore[override]
+        return _NoDefaultSerialisers(other)
+
+    def __ror__(self, other: dict) -> _NoDefaultSerialisers:  # type: ignore[override]
+        return _NoDefaultSerialisers(other)
+
+
+NO_DEFAULT_SERIALISERS: _NoDefaultSerialisers = _NoDefaultSerialisers()
 
 
 # ---------------------------------------------------------------------------
@@ -93,9 +112,14 @@ def build_registry(
     """
     Build serialiser registry by merging built-ins with user-provided serialisers.
 
-    User entries override built-in entries for the same type. If user_serialisers
-    is None, returns the built-in registry unchanged. If user_serialisers is an
-    empty dict (NO_DEFAULT_SERIALISERS or {}), returns an empty registry.
+    Three behaviours:
+
+    * ``None`` → built-in registry only (default when fixture is not overridden).
+    * ``_NoDefaultSerialisers`` instance (including ``NO_DEFAULT_SERIALISERS`` and
+      ``NO_DEFAULT_SERIALISERS | {types}``) → only the entries in that dict, no
+      built-ins added.
+    * Any other non-empty dict → built-ins merged with user entries; user wins on
+      conflict.
 
     Args:
         user_serialisers: User registry from adbc_param_serialisers fixture, or None.
@@ -105,6 +129,8 @@ def build_registry(
     """
     if user_serialisers is None:
         return dict(_BUILTIN_SERIALISERS)
+    if isinstance(user_serialisers, _NoDefaultSerialisers):
+        return dict(user_serialisers)
     if not user_serialisers:
         return {}
     return {**_BUILTIN_SERIALISERS, **user_serialisers}

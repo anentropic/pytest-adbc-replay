@@ -36,7 +36,9 @@ def adbc_param_serialisers():
 
 ## Replace all built-in serialisers
 
-To disable built-in serialisers entirely and provide a fully custom set, return the `NO_DEFAULT_SERIALISERS` sentinel:
+To disable built-in serialisers entirely, return the `NO_DEFAULT_SERIALISERS` sentinel. Use this if a built-in serialiser conflicts with your expected output format.
+
+**No serialisers at all:**
 
 ```python
 from pytest_adbc_replay import NO_DEFAULT_SERIALISERS
@@ -48,7 +50,29 @@ def adbc_param_serialisers():
     return NO_DEFAULT_SERIALISERS
 ```
 
-When `NO_DEFAULT_SERIALISERS` is returned, only your registered serialisers apply. Use this if a built-in serialiser conflicts with your expected output format.
+**Start from scratch and add your own types:**
+
+Combine the sentinel with your handlers using `|`. Only the types you list will be active — no built-ins are merged:
+
+```python
+import decimal
+
+import pytest
+
+from pytest_adbc_replay import NO_DEFAULT_SERIALISERS
+
+
+@pytest.fixture(scope="session")
+def adbc_param_serialisers():
+    return NO_DEFAULT_SERIALISERS | {
+        decimal.Decimal: {
+            "serialise": lambda v: {"__type__": "Decimal", "value": str(v)},
+            "deserialise": lambda d: decimal.Decimal(d["value"]),
+        },
+    }
+```
+
+This is different from returning `{decimal.Decimal: ...}` directly — that merges your entry with the built-ins. The `NO_DEFAULT_SERIALISERS | {...}` form gives you only the types you listed.
 
 ## Related
 
