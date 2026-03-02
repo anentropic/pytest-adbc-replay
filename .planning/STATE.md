@@ -75,6 +75,7 @@ Recent decisions affecting current work:
 
 - Phase 8 added: Automatic ADBC Wrapping (eliminate explicit adbc_replay.wrap(conn) conftest step)
 - Phase 9 added: implement and document the adbc_scrubber interface, consider if we can offer a default scrubbing already enabled perhaps with keys specified via config
+- Phase 10 added: per-driver adbc_dialect config and dialect docs review
 
 ### Pending Todos
 

@@ -185,3 +185,13 @@ Plans:
 - [ ] 09-01-PLAN.md — Core implementation: adbc_scrub_keys ini key, scrubbing pipeline in _cursor.py, wire adbc_scrubber fixture with (params, driver_name) signature
 - [ ] 09-02-PLAN.md — Test suite: pytester integration tests proving REDACTED in cassette JSON, scrubber callable argument tests, _parse_scrub_keys unit tests
 - [ ] 09-03-PLAN.md — Documentation updates: remove "not yet active" warnings, rewrite how-to guide, update reference pages and README
+
+### Phase 10: per-driver adbc_dialect config and dialect docs review
+
+**Goal:** `adbc_dialect` ini key becomes per-driver (e.g. `adbc_driver_snowflake: snowflake`) following the same pattern as `adbc_scrub_keys`; docs explain that the default is auto-detect, per-driver config is the usual override path, and the per-test marker dialect example is removed or reframed as an edge-case escape hatch rather than a primary workflow
+**Requirements**: TBD
+**Depends on:** Phase 9
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 10 to break down)
