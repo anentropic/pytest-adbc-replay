@@ -1,5 +1,7 @@
 # pytest-adbc-replay
 
+[ [Docs](https://anentropic.github.io/pytest-adbc-replay) ]
+
 Record/replay testing for ADBC database queries, as a pytest plugin.
 
 ## What / Why
@@ -148,7 +150,7 @@ Config scrubbing runs first; the fixture callable receives the already-config-sc
 `adbc_param_serialisers` is a session-scoped fixture for registering custom parameter serialisers
 for types not handled by default.
 
-Full reference documentation: [https://TODO.github.io/pytest-adbc-replay](https://TODO.github.io/pytest-adbc-replay)
+Full reference documentation: [https://anentropic.github.io/pytest-adbc-replay](https://anentropic.github.io/pytest-adbc-replay)
 
 ## License
 
