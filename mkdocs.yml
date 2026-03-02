@@ -25,6 +25,7 @@ theme:
         name: Switch to light mode
   features:
     - navigation.instant
+    - navigation.tabs
     - navigation.sections
     - navigation.top
     - navigation.tracking
@@ -87,7 +88,9 @@ markdown_extensions:
       permalink: true
 
 nav:
-  - Home: index.md
+  - Home:
+    - Overview: index.md
+    - Changelog: changelog.md
   - Tutorial: tutorial/
   - How-To Guides: how-to/
   - Reference:
@@ -100,4 +103,3 @@ nav:
     - Cassette Format: reference/cassette-format.md
     - API Reference: reference/pytest_adbc_replay/plugin.md
   - Explanation: explanation/
-  - Changelog: changelog.md
