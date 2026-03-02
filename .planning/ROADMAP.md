@@ -191,7 +191,7 @@ Plans:
 **Goal:** `adbc_dialect` ini key becomes per-driver (e.g. `adbc_driver_snowflake: snowflake`) following the same pattern as `adbc_scrub_keys`; docs explain that the default is auto-detect, per-driver config is the usual override path, and the per-test marker dialect example is removed or reframed as an edge-case escape hatch rather than a primary workflow
 **Requirements**: DIAL-01, DIAL-02, DIAL-03
 **Depends on:** Phase 9
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 10-01-PLAN.md — Core implementation: _parse_dialect(), adbc_dialect as linelist, ReplaySession per-driver dialect resolution
