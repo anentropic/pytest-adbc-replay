@@ -163,7 +163,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 ### Phase 8: Automatic ADBC Wrapping
 
-**Goal:** [To be planned]
+**Goal:** Users can add `adbc_auto_patch = adbc_driver_X` to pyproject.toml and `@pytest.mark.adbc_cassette` to a test, then write normal `driver.connect()` calls with no conftest boilerplate — the plugin intercepts and wraps connections automatically, with per-driver cassette subdirectories and an `adbc_connect` fixture as escape hatch for session-scoped connections
 **Requirements**: TBD
 **Depends on:** Phase 7
 **Plans:** 0 plans
