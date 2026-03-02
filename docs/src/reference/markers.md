@@ -15,7 +15,7 @@ Sets the cassette directory name and optional SQL dialect for a test.
 | Argument | Type | Default | Description |
 |---|---|---|---|
 | `name` | `str` | required | The cassette directory name. The cassette is stored at `{adbc_cassette_dir}/{name}/`. |
-| `dialect` | `str \| None` | `None` | SQL dialect for normalisation. Overrides the global `adbc_dialect` ini setting for this test. |
+| `dialect` | `str \| None` | `None` | SQL dialect override for this test only. Use this as an escape hatch when a single test needs a different dialect than the driver's configured ini value. For most projects, set dialect per-driver in `adbc_dialect` ini instead. |
 
 **Without the marker:**
 
@@ -32,9 +32,20 @@ def test_user_report(db_conn): ...
 ```
 
 Cassette path: `tests/cassettes/user_report/`
-Dialect: `"snowflake"` (used by sqlglot when normalising the SQL)
+Dialect: `"snowflake"` (used by sqlglot when normalising the SQL for this test)
+
+For tests that consistently use the same dialect as their driver, set `adbc_dialect` in ini — the per-driver form removes the need for `dialect=` on individual markers:
+
+```toml
+[tool.pytest.ini_options]
+adbc_dialect = [
+    "adbc_driver_snowflake.dbapi: snowflake",
+]
+```
+
+With this configured, Snowflake tests need no `dialect=` argument on their markers.
 
 ## Related
 
 - [Name cassettes per test](../how-to/cassette-names.md) — when and how to use the marker
-- [Configuration](configuration.md) — global `adbc_dialect` ini key
+- [Configuration](configuration.md) — `adbc_dialect` ini key and per-driver dialect config

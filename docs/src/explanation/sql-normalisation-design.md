@@ -1,6 +1,6 @@
 # SQL normalisation design
 
-This article explains why cassette keys are normalised, what sqlglot does during normalisation, and how per-test dialect override works.
+This article explains why cassette keys are normalised, what [sqlglot](https://sqlglot.com/) does during normalisation, and how dialect configuration works.
 
 ## Why cassette keys need normalisation
 
@@ -29,24 +29,49 @@ sqlglot is a pure-Python SQL parser with no native extensions. It is not a datab
 
 See the [Exceptions reference](../reference/exceptions.md) for details on `NormalisationWarning`.
 
-## Per-test dialect override
+## Dialect configuration
 
 Different databases use different SQL dialects. Snowflake has `QUALIFY`. BigQuery uses backtick quoting. DuckDB has its own extensions. sqlglot needs to know the dialect to parse correctly.
 
-The global `adbc_dialect` ini key sets a project-wide default. For many test suites, this is all you need.
+The recommended path for projects with multiple drivers is to configure dialect per-driver in `adbc_dialect`:
 
-In suites that test against multiple databases, individual tests can override the dialect:
-
-```python
-@pytest.mark.adbc_cassette("snowflake_report", dialect="snowflake")
-def test_snowflake_query(snow_conn): ...
+```toml
+[tool.pytest.ini_options]
+adbc_dialect = [
+    "adbc_driver_snowflake.dbapi: snowflake",
+    "adbc_driver_duckdb.dbapi: duckdb",
+]
 ```
 
-The `dialect` argument is passed directly to sqlglot. It accepts any dialect string sqlglot recognises (`"snowflake"`, `"bigquery"`, `"duckdb"`, and others). An empty string or `None` triggers sqlglot's auto-detect, which works for standard SQL.
+With this set, the correct dialect is resolved automatically from the driver module name. Tests using Snowflake get `snowflake`, tests using DuckDB get `duckdb`. No `dialect=` on individual markers.
+
+The dialect resolution priority chain is: explicit `wrap(dialect=)` argument > marker `dialect=` > per-driver ini > global ini fallback > auto-detect.
+
+A bare value (no colon) sets a global fallback for any driver not explicitly listed:
+
+```toml
+adbc_dialect = [
+    "snowflake",                            # global fallback
+    "adbc_driver_duckdb.dbapi: duckdb",     # per-driver override
+]
+```
+
+The `dialect` argument is passed directly to sqlglot. It accepts any dialect string sqlglot recognises (`"snowflake"`, `"bigquery"`, `"duckdb"`, and others). An empty list or no configuration triggers sqlglot's auto-detect, which works for standard SQL.
+
+### Per-test override (escape hatch)
+
+If one specific test uses a query that trips up auto-detect even though the driver's dialect is configured correctly, the marker `dialect=` argument overrides for that test only:
+
+```python
+@pytest.mark.adbc_cassette("unusual_query", dialect="bigquery")
+def test_unusual_syntax(snow_conn): ...
+```
+
+This is an edge case. For most projects, per-driver ini config handles all dialect needs without per-test overrides.
 
 The per-test override is stored only in the marker. It does not affect other tests or the global setting.
 
-See the [Configuration reference](../reference/configuration.md) for the `adbc_dialect` ini key.
+See the [Configuration reference](../reference/configuration.md) for the `adbc_dialect` ini key and full priority chain documentation.
 
 ## What normalisation does not cover
 

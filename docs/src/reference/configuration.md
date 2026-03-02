@@ -9,7 +9,7 @@ All configuration surfaces for the plugin.
 | `--adbc-record` | CLI flag | `none` | Record mode for this run. Overrides `adbc_record_mode`. Choices: `none`, `once`, `new_episodes`, `all`. |
 | `adbc_cassette_dir` | ini key (str) | `tests/cassettes` | Directory where cassette subdirectories are stored. Relative to the pytest rootdir. |
 | `adbc_record_mode` | ini key (str) | `none` | Default record mode. Overridden by `--adbc-record` for a single run. |
-| `adbc_dialect` | ini key (str) | `""` | SQL dialect for normalisation passed to sqlglot. Empty string triggers auto-detect. Per-test override via the `adbc_cassette` marker. |
+| `adbc_dialect` | ini key (linelist) | `[]` | SQL dialect for normalisation passed to sqlglot. Bare value = global fallback. Per-driver form: `driver_name: dialect`. Empty = auto-detect. |
 | `adbc_auto_patch` | ini key (str) | `""` | Space-separated list of ADBC driver module names whose `connect()` function is intercepted automatically. Only active for tests with `@pytest.mark.adbc_cassette`. |
 | `adbc_scrub_keys` | ini key (linelist) | `[]` | Parameter key names to redact from `.json` cassette files. Global form: space-separated keys. Per-driver form: `driver_name: key1 key2`. |
 
@@ -19,7 +19,7 @@ All configuration surfaces for the plugin.
 [tool.pytest.ini_options]
 adbc_cassette_dir = "tests/cassettes"
 adbc_record_mode = "none"
-adbc_dialect = ""
+adbc_dialect = []  # e.g. ["adbc_driver_snowflake.dbapi: snowflake", "adbc_driver_duckdb.dbapi: duckdb"]
 adbc_auto_patch = ""  # e.g. "adbc_driver_duckdb.dbapi adbc_driver_snowflake.dbapi"
 adbc_scrub_keys = []  # e.g. ["token password", "adbc_driver_snowflake: account_id"]
 ```
@@ -31,9 +31,48 @@ adbc_scrub_keys = []  # e.g. ["token password", "adbc_driver_snowflake: account_
 adbc_cassette_dir = tests/cassettes
 adbc_record_mode = none
 adbc_dialect =
+    # adbc_driver_snowflake.dbapi: snowflake
+    # adbc_driver_duckdb.dbapi: duckdb
 adbc_auto_patch =
 adbc_scrub_keys =
 ```
+
+### `adbc_dialect`
+
+`adbc_dialect` is a `linelist` ini key. Each line is either a bare value (global fallback) or a per-driver line with the driver module name followed by a colon:
+
+```toml
+[tool.pytest.ini_options]
+adbc_dialect = [
+    # Global fallback for any driver not explicitly listed
+    "snowflake",
+    # Per-driver override
+    "adbc_driver_duckdb.dbapi: duckdb",
+]
+```
+
+In `pytest.ini`:
+
+```ini
+adbc_dialect =
+    snowflake
+    adbc_driver_duckdb.dbapi: duckdb
+```
+
+**Dialect resolution priority chain:**
+
+1. Explicit `dialect=` argument passed to `adbc_replay.wrap()` or `wrap_from_item()`
+2. `dialect=` argument on `@pytest.mark.adbc_cassette` for the current test
+3. Per-driver ini entry matching the driver module name
+4. Global ini fallback (bare value)
+5. Auto-detect (no dialect configured)
+
+- A bare value sets the global fallback. When multiple bare lines are present, the last one wins.
+- Per-driver lines use the form `driver_module_name: dialect_string`. The driver module name must match what is passed to `adbc_replay.wrap()` (e.g. `adbc_driver_snowflake.dbapi`).
+- Accepted dialect strings are any value sqlglot recognises (`"snowflake"`, `"bigquery"`, `"duckdb"`, etc.).
+- An empty list (the default) triggers sqlglot auto-detect, which works for standard SQL.
+
+For most projects, per-driver ini config is the right path. The `dialect=` marker argument is an edge-case override for individual tests that need a different dialect than their driver's configured value. See [Setting the SQL dialect](../how-to/configure-via-ini.md#setting-the-sql-dialect) for usage examples.
 
 ### `adbc_scrub_keys`
 
@@ -63,22 +102,11 @@ how-to guide.
 
 The `--adbc-record` CLI flag takes precedence over `adbc_record_mode` for the duration of that pytest run. Neither modifies the stored configuration.
 
-`adbc_dialect` accepts any dialect string that sqlglot recognises (`"snowflake"`, `"bigquery"`, `"duckdb"`, etc.). An empty string or `None` triggers sqlglot's auto-detect mode, which works for standard SQL.
-
 ### Precedence
 
 `--adbc-record` (CLI flag) > `adbc_record_mode` (ini key)
 
 When both are set, the CLI flag wins for that session only.
-
-### Per-test dialect
-
-The `adbc_dialect` ini key sets a project-wide default. To override for one test, use the `dialect` argument on `@pytest.mark.adbc_cassette`:
-
-```python
-@pytest.mark.adbc_cassette("my_test", dialect="bigquery")
-def test_something(db_conn): ...
-```
 
 ### Automatic patching
 

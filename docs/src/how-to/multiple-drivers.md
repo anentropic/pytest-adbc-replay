@@ -70,10 +70,19 @@ Each wrapped connection has its own cassette tracking — a query on `duck_conn`
 
 ## SQL dialect per connection
 
-If your two databases use different SQL dialects, use the `dialect` argument on the marker to normalise SQL correctly per test:
+If your databases use different SQL dialects, configure dialect per-driver in ini. This is the recommended approach — set it once and all tests using that driver get the correct dialect automatically:
+
+```toml
+[tool.pytest.ini_options]
+adbc_dialect = [
+    "adbc_driver_snowflake.dbapi: snowflake",
+]
+```
+
+With this configured, Snowflake tests need no `dialect=` argument on their markers:
 
 ```python
-@pytest.mark.adbc_cassette("sf_query", dialect="snowflake")
+@pytest.mark.adbc_cassette("sf_query")
 def test_snowflake(snow_conn): ...
 
 
@@ -81,9 +90,23 @@ def test_snowflake(snow_conn): ...
 def test_duckdb(duck_conn): ...
 ```
 
-You can also set a global default with `adbc_dialect` in ini and override per test.
+For projects with multiple drivers that each need a different dialect:
+
+```toml
+adbc_dialect = [
+    "adbc_driver_snowflake.dbapi: snowflake",
+    "adbc_driver_duckdb.dbapi: duckdb",
+]
+```
+
+If a single test needs a different dialect than its driver's configured value, override with `dialect=` on the marker:
+
+```python
+@pytest.mark.adbc_cassette("unusual_query", dialect="bigquery")
+def test_unusual_syntax(snow_conn): ...
+```
 
 ## Related
 
-- [Name cassettes per test](cassette-names.md) — dialect override on the marker
-- [Configuration reference](../reference/configuration.md) — `adbc_dialect` ini key
+- [Name cassettes per test](cassette-names.md) — cassette naming patterns
+- [Configuration reference](../reference/configuration.md) — `adbc_dialect` ini key and per-driver format
