@@ -26,6 +26,78 @@ if TYPE_CHECKING:
     from types import TracebackType
 
 
+# ---------------------------------------------------------------------------
+# Scrubbing helpers
+# ---------------------------------------------------------------------------
+
+
+def _apply_config_scrubbing(
+    params_raw: Any,
+    global_keys: list[str],
+    per_driver_keys: dict[str, list[str]],
+    driver_name: str | None,
+) -> Any:
+    """
+    Apply config-based key scrubbing to serialised parameters.
+
+    Replaces the value of each matched key with the fixed sentinel ``"REDACTED"``.
+    Only dict params are affected; list/tuple/None params are returned unchanged.
+
+    Args:
+        params_raw: Serialised parameter structure from ``serialise_params()``.
+        global_keys: Key names to redact for all drivers.
+        per_driver_keys: Mapping of driver module name → keys to redact for that driver only.
+        driver_name: ADBC driver module name (e.g. ``"adbc_driver_snowflake"``).
+
+    Returns:
+        Scrubbed parameters (new dict) or the original value unchanged if not a dict.
+    """
+    if not isinstance(params_raw, dict):
+        return params_raw
+    keys_to_redact = set(global_keys) | set(per_driver_keys.get(driver_name or "", []))
+    if not keys_to_redact:
+        return params_raw
+    result = dict(params_raw)
+    for key in keys_to_redact:
+        if key in result:
+            result[key] = "REDACTED"
+    return result
+
+
+def apply_scrubbing(
+    params_raw: Any,
+    global_keys: list[str],
+    per_driver_keys: dict[str, list[str]],
+    driver_name: str | None,
+    scrubber: object,
+) -> Any:
+    """
+    Apply the full scrubbing pipeline to serialised parameters.
+
+    Pipeline order:
+    1. Config-based scrubbing (``global_keys`` + ``per_driver_keys``).
+    2. Fixture callable ``scrubber(params, driver_name)`` — receives already-config-scrubbed params.
+       If the callable returns ``None``, the config-scrubbed params are used unchanged.
+       If the callable returns a dict, that dict replaces the config-scrubbed params.
+
+    Args:
+        params_raw: Serialised parameter structure from ``serialise_params()``.
+        global_keys: Key names to redact for all drivers.
+        per_driver_keys: Mapping of driver module name → keys to redact for that driver only.
+        driver_name: ADBC driver module name (e.g. ``"adbc_driver_snowflake"``).
+        scrubber: Callable ``scrub(params, driver_name) -> dict | None`` or ``None``.
+
+    Returns:
+        Scrubbed parameters ready for ``write_params_json()``.
+    """
+    result = _apply_config_scrubbing(params_raw, global_keys, per_driver_keys, driver_name)
+    if scrubber is not None and callable(scrubber):
+        fixture_result: Any = scrubber(result, driver_name)  # type: ignore[call-arg]
+        if fixture_result is not None:
+            result = fixture_result
+    return result
+
+
 class ReplayCursor:
     """
     ADBC cursor proxy implementing the full ADBC cursor protocol.
@@ -42,12 +114,20 @@ class ReplayCursor:
         cassette_path: Path,
         dialect: str | None = None,
         param_serialisers: dict[Any, dict[str, Any]] | None = None,
+        scrub_keys_global: list[str] | None = None,
+        scrub_keys_per_driver: dict[str, list[str]] | None = None,
+        driver_name: str | None = None,
+        scrubber: object = None,
     ) -> None:
         self._real_cursor = real_cursor
         self._mode = mode
         self._cassette_path = cassette_path
         self._dialect = dialect
         self._registry = build_registry(param_serialisers)
+        self._scrub_keys_global: list[str] = scrub_keys_global or []
+        self._scrub_keys_per_driver: dict[str, list[str]] = scrub_keys_per_driver or {}
+        self._driver_name = driver_name
+        self._scrubber = scrubber
         # Pending result from execute(); replaced per call
         self._pending: pa.Table = pa.table({})
         # Offset for DBAPI2 fetch methods
@@ -102,6 +182,13 @@ class ReplayCursor:
         write_sql_file(canonical_sql, sql_path)
         write_arrow_table(table, arrow_path)
         params_raw = serialise_params(params, self._registry)
+        params_raw = apply_scrubbing(
+            params_raw,
+            self._scrub_keys_global,
+            self._scrub_keys_per_driver,
+            self._driver_name,
+            self._scrubber,
+        )
         write_params_json(params_raw, params_path)
         self._record_index += 1
 
