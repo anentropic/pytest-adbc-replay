@@ -101,6 +101,17 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         type="linelist",
         default=[],
     )
+    parser.addini(
+        "adbc_cassette_differentiator_keys",
+        help=(
+            "db_kwargs key names whose values are appended as extra cassette path "
+            "segments. Used to disambiguate drivers sharing a single Python module "
+            "(e.g. ADBC Foundry drivers via adbc_driver_manager.dbapi). "
+            "Space-separated key names (e.g. 'driver'). Default: 'driver'."
+        ),
+        type="linelist",
+        default=["driver"],
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -184,6 +195,28 @@ def _parse_dialect(lines: list[str]) -> tuple[str | None, dict[str, str]]:
     return global_dialect, per_driver_dialects
 
 
+def _parse_differentiator_keys(lines: list[str]) -> tuple[str, ...]:
+    """
+    Parse the adbc_cassette_differentiator_keys linelist ini value.
+
+    Each line contains space-separated key names whose ``db_kwargs`` values
+    are appended as extra cassette path segments. All lines are merged into
+    a single tuple.
+
+    Args:
+        lines: Lines from ``config.getini("adbc_cassette_differentiator_keys")``.
+
+    Returns:
+        Tuple of key name strings (e.g. ``("driver",)``).
+    """
+    keys: list[str] = []
+    for line in lines:
+        line = line.strip()
+        if line:
+            keys.extend(line.split())
+    return tuple(keys)
+
+
 def _build_session_from_config(config: pytest.Config) -> ReplaySession:
     """Build a ReplaySession from pytest config. Used by auto-patch initialization."""
     cli_mode = cast("str | None", config.getoption("--adbc-record"))
@@ -199,6 +232,11 @@ def _build_session_from_config(config: pytest.Config) -> ReplaySession:
     raw_scrub_keys: list[str] = cast("list[str]", config.getini("adbc_scrub_keys")) or []
     global_keys, per_driver_keys = _parse_scrub_keys(raw_scrub_keys)
 
+    raw_diff_keys: list[str] = (
+        cast("list[str]", config.getini("adbc_cassette_differentiator_keys")) or []
+    )
+    differentiator_keys = _parse_differentiator_keys(raw_diff_keys)
+
     return ReplaySession(
         mode=mode,
         cassette_dir=cassette_dir,
@@ -208,6 +246,7 @@ def _build_session_from_config(config: pytest.Config) -> ReplaySession:
         dialect_per_driver=dialect_per_driver,
         scrub_keys_global=global_keys,
         scrub_keys_per_driver=per_driver_keys,
+        differentiator_keys_default=differentiator_keys,
     )
 
 
@@ -389,6 +428,11 @@ def adbc_replay(
     raw_scrub_keys: list[str] = cast("list[str]", request.config.getini("adbc_scrub_keys")) or []
     global_keys, per_driver_keys = _parse_scrub_keys(raw_scrub_keys)
 
+    raw_diff_keys: list[str] = (
+        cast("list[str]", request.config.getini("adbc_cassette_differentiator_keys")) or []
+    )
+    differentiator_keys = _parse_differentiator_keys(raw_diff_keys)
+
     session = ReplaySession(
         mode=mode,
         cassette_dir=cassette_dir,
@@ -398,6 +442,7 @@ def adbc_replay(
         dialect_per_driver=dialect_per_driver,
         scrub_keys_global=global_keys,
         scrub_keys_per_driver=per_driver_keys,
+        differentiator_keys_default=differentiator_keys,
     )
     # Overwrite the eagerly-initialized session_state (set in pytest_sessionstart)
     # with this fully-configured instance that includes param_serialisers and scrubber.

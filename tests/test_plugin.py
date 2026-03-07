@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pytest_adbc_replay.plugin import _parse_dialect, _parse_scrub_keys
+from pytest_adbc_replay.plugin import (
+    _parse_dialect,
+    _parse_differentiator_keys,
+    _parse_scrub_keys,
+)
 
 if TYPE_CHECKING:
     import pytest
@@ -573,6 +577,94 @@ class TestPerDriverDialect:
                 )
                 assert conn._dialect == "bigquery", (
                     f"Expected bigquery (explicit arg), got {conn._dialect!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+
+class TestParseDifferentiatorKeys:
+    """Unit tests for _parse_differentiator_keys helper."""
+
+    def test_empty_list_returns_empty_tuple(self) -> None:
+        """Empty input -> empty tuple."""
+        result = _parse_differentiator_keys([])
+        assert result == ()
+
+    def test_blank_lines_ignored(self) -> None:
+        """Blank and whitespace-only lines are ignored."""
+        result = _parse_differentiator_keys(["", "   ", "\t"])
+        assert result == ()
+
+    def test_single_key(self) -> None:
+        """Single key on a single line."""
+        result = _parse_differentiator_keys(["driver"])
+        assert result == ("driver",)
+
+    def test_multiple_keys_single_line(self) -> None:
+        """Multiple space-separated keys on a single line."""
+        result = _parse_differentiator_keys(["driver version"])
+        assert result == ("driver", "version")
+
+    def test_multiple_lines_merged(self) -> None:
+        """Multiple lines are merged into a single tuple."""
+        result = _parse_differentiator_keys(["driver", "version"])
+        assert result == ("driver", "version")
+
+    def test_default_value_is_driver(self) -> None:
+        """Default ini value ['driver'] parses to ('driver',)."""
+        result = _parse_differentiator_keys(["driver"])
+        assert result == ("driver",)
+
+
+class TestDifferentiatorKeysIni:
+    """Integration tests for adbc_cassette_differentiator_keys ini key."""
+
+    def test_ini_key_accepted(self, pytester: pytest.Pytester) -> None:
+        """adbc_cassette_differentiator_keys ini key does not cause pytest error."""
+        pytester.makeini("[pytest]\nadbc_cassette_differentiator_keys = driver\n")
+        pytester.makepyfile("def test_pass(): pass")
+        result = pytester.runpytest()
+        result.assert_outcomes(passed=1)
+
+    def test_default_differentiator_keys_is_driver(self, pytester: pytest.Pytester) -> None:
+        """Default differentiator_keys_default on ReplaySession is ('driver',)."""
+        pytester.makepyfile(
+            """
+            def test_default_keys(adbc_replay):
+                assert adbc_replay.differentiator_keys_default == ("driver",), (
+                    f"Expected ('driver',), got {adbc_replay.differentiator_keys_default!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_custom_differentiator_keys_from_ini(self, pytester: pytest.Pytester) -> None:
+        """Custom differentiator keys from ini are passed to ReplaySession."""
+        pytester.makeini("[pytest]\nadbc_cassette_differentiator_keys = driver version\n")
+        pytester.makepyfile(
+            """
+            def test_custom_keys(adbc_replay):
+                expected = ("driver", "version")
+                actual = adbc_replay.differentiator_keys_default
+                assert actual == expected, (
+                    f"Expected {expected!r}, got {actual!r}"
+                )
+        """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_empty_differentiator_keys_from_ini(self, pytester: pytest.Pytester) -> None:
+        """Empty ini value produces empty tuple (no differentiator segments)."""
+        pytester.makeini("[pytest]\nadbc_cassette_differentiator_keys =\n")
+        pytester.makepyfile(
+            """
+            def test_empty_keys(adbc_replay):
+                assert adbc_replay.differentiator_keys_default == (), (
+                    f"Expected (), got {adbc_replay.differentiator_keys_default!r}"
                 )
         """
         )

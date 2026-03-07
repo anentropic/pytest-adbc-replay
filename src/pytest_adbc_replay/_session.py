@@ -34,6 +34,7 @@ class ReplaySession:
         dialect_per_driver: dict[str, str] | None = None,
         scrub_keys_global: list[str] | None = None,
         scrub_keys_per_driver: dict[str, list[str]] | None = None,
+        differentiator_keys_default: tuple[str, ...] = ("driver",),
     ) -> None:
         self.mode = mode
         self.cassette_dir = cassette_dir
@@ -43,6 +44,23 @@ class ReplaySession:
         self.dialect_per_driver: dict[str, str] = dialect_per_driver or {}
         self.scrub_keys_global: list[str] = scrub_keys_global or []
         self.scrub_keys_per_driver: dict[str, list[str]] = scrub_keys_per_driver or {}
+        self.differentiator_keys_default = differentiator_keys_default
+
+    def _extract_differentiator_segments(
+        self,
+        db_kwargs: dict[str, object] | None,
+        keys: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        """
+        Extract differentiator path segments from db_kwargs.
+
+        Looks up each key in ``keys`` within ``db_kwargs`` and collects
+        ``str(value)`` for keys that exist. Returns an empty tuple when
+        ``db_kwargs`` is ``None`` or no keys match.
+        """
+        if not db_kwargs or not keys:
+            return ()
+        return tuple(str(db_kwargs[k]) for k in keys if k in db_kwargs)
 
     def wrap(
         self,
@@ -53,6 +71,7 @@ class ReplaySession:
         cassette_name: str | None = None,
         dialect: str | None = None,
         param_serialisers: dict[Any, dict[str, Any]] | None = None,
+        cassette_differentiator_keys: tuple[str, ...] | None = None,
     ) -> ReplayConnection:
         """
         Create a ReplayConnection for the current test.
@@ -70,6 +89,9 @@ class ReplaySession:
             param_serialisers: Per-call override of custom parameter serialisers.
                 If None, falls back to the session-level param_serialisers set on
                 this ReplaySession (typically from the adbc_param_serialisers fixture).
+            cassette_differentiator_keys: Per-call override for differentiator keys.
+                When provided, overrides ``differentiator_keys_default`` for extracting
+                extra cassette path segments from ``db_kwargs``.
 
         Returns:
             ReplayConnection ready for use in the test.
@@ -94,6 +116,14 @@ class ReplaySession:
                 # Marker wins over both explicit arg and session global
                 resolved_dialect = marker.kwargs.get("dialect", resolved_dialect)
 
+        # Extract differentiator segments from db_kwargs
+        diff_keys = (
+            cassette_differentiator_keys
+            if cassette_differentiator_keys is not None
+            else self.differentiator_keys_default
+        )
+        diff_segments = self._extract_differentiator_segments(db_kwargs, diff_keys)
+
         # Derive cassette path
         if resolved_name is not None:
             cassette_path = self.cassette_dir / resolved_name
@@ -101,6 +131,10 @@ class ReplaySession:
             cassette_path = node_id_to_cassette_path(request.node.nodeid, self.cassette_dir)
         else:
             cassette_path = self.cassette_dir / "unknown"
+
+        # Append differentiator segments (e.g. "mysql") for Foundry driver disambiguation
+        if diff_segments:
+            cassette_path = cassette_path.joinpath(*diff_segments)
 
         # Per-call param_serialisers wins over session-level fallback
         resolved_serialisers = (
@@ -131,7 +165,9 @@ class ReplaySession:
 
         Used by the monkeypatched connect() to resolve cassette path from the
         currently-running test item without needing a FixtureRequest. Per-driver
-        cassette subdirectory is always applied.
+        cassette subdirectory is always applied. Differentiator segments from
+        ``db_kwargs`` are appended to disambiguate drivers sharing a module
+        (e.g. Foundry drivers via ``adbc_driver_manager.dbapi``).
 
         Args:
             driver_module_name: ADBC driver module name (e.g. "adbc_driver_snowflake").
@@ -149,6 +185,11 @@ class ReplaySession:
         # Lazy import to avoid circular imports at module level
         from pytest_adbc_replay._connection import ReplayConnection  # noqa: PLC0415
 
+        # Extract differentiator segments from db_kwargs using default keys
+        diff_segments = self._extract_differentiator_segments(
+            db_kwargs, self.differentiator_keys_default
+        )
+
         # Priority: marker dialect > per-driver ini > global ini > None
         resolved_dialect: str | None = (
             self.dialect_per_driver.get(driver_module_name) or self.dialect_global
@@ -163,13 +204,23 @@ class ReplaySession:
             else:
                 # No name argument: derive from node ID with driver subdir
                 cassette_path = node_id_to_cassette_path(
-                    item.nodeid, self.cassette_dir, driver_module_name=driver_module_name
+                    item.nodeid,
+                    self.cassette_dir,
+                    driver_module_name=driver_module_name,
+                    differentiator_segments=diff_segments,
                 )
         else:
             # No marker: derive from node ID with driver subdir
             cassette_path = node_id_to_cassette_path(
-                item.nodeid, self.cassette_dir, driver_module_name=driver_module_name
+                item.nodeid,
+                self.cassette_dir,
+                driver_module_name=driver_module_name,
+                differentiator_segments=diff_segments,
             )
+
+        # For named cassettes, append differentiator segments after driver_module_name
+        if marker is not None and marker.args and diff_segments:
+            cassette_path = cassette_path.joinpath(*diff_segments)
 
         return ReplayConnection(
             driver_module_name=driver_module_name,

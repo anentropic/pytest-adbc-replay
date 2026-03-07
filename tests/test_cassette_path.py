@@ -121,3 +121,69 @@ class TestDriverModuleNameSubdir:
         assert result == (
             _BASE / "foo" / "test_bar" / "TestClass" / "test_method" / "adbc_driver_duckdb"
         )
+
+
+class TestDifferentiatorSegments:
+    """Tests for cassette_differentiator_keys path segments (Phase 1, Plan 01)."""
+
+    def test_no_differentiator_segments_same_as_before(self) -> None:
+        """Without differentiator_segments, result is unchanged from existing behaviour."""
+        result_default = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            driver_module_name="adbc_driver_manager.dbapi",
+        )
+        result_none = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            driver_module_name="adbc_driver_manager.dbapi",
+            differentiator_segments=None,
+        )
+        assert result_default == result_none
+        assert result_default == _BASE / "test_foo" / "test_bar" / "adbc_driver_manager.dbapi"
+
+    def test_empty_differentiator_segments_same_as_without(self) -> None:
+        """Empty differentiator_segments tuple behaves identically to omitting it."""
+        result_empty = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            driver_module_name="adbc_driver_manager.dbapi",
+            differentiator_segments=(),
+        )
+        result_default = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            driver_module_name="adbc_driver_manager.dbapi",
+        )
+        assert result_empty == result_default
+
+    def test_single_differentiator_segment_appended(self) -> None:
+        """differentiator_segments=("mysql",) appends 'mysql' after driver_module_name."""
+        result = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            driver_module_name="adbc_driver_manager.dbapi",
+            differentiator_segments=("mysql",),
+        )
+        assert result == (_BASE / "test_foo" / "test_bar" / "adbc_driver_manager.dbapi" / "mysql")
+
+    def test_multiple_differentiator_segments_appended(self) -> None:
+        """differentiator_segments=("mysql", "v2") appends both segments in order."""
+        result = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            driver_module_name="adbc_driver_manager.dbapi",
+            differentiator_segments=("mysql", "v2"),
+        )
+        assert result == (
+            _BASE / "test_foo" / "test_bar" / "adbc_driver_manager.dbapi" / "mysql" / "v2"
+        )
+
+    def test_differentiator_segments_without_driver_module_name(self) -> None:
+        """differentiator_segments appended even when no driver_module_name provided."""
+        result = node_id_to_cassette_path(
+            "tests/test_foo.py::test_bar",
+            _BASE,
+            differentiator_segments=("mysql",),
+        )
+        assert result == _BASE / "test_foo" / "test_bar" / "mysql"

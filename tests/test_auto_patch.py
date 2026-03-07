@@ -282,3 +282,86 @@ class TestAdbcConnectFixture:
         )
         result = pytester.runpytest("-v")
         result.assert_outcomes(passed=1)
+
+
+class TestDifferentiatorKeysAutoPatch:
+    """Auto-patch with cassette_differentiator_keys produces disambiguated paths."""
+
+    def test_differentiator_segments_in_cassette_path(self, pytester: pytest.Pytester) -> None:
+        """Verify driver='mysql' in db_kwargs produces /mysql/ segment in cassette path."""
+        pytester.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.adbc_cassette("diff_path_test")
+            def test_differentiator_path(adbc_connect):
+                # Pass driver='mysql' as a db_kwarg -- simulates Foundry usage.
+                # The differentiator feature extracts it for cassette path.
+                conn = adbc_connect("adbc_driver_sqlite.dbapi", driver="mysql")
+                path_str = str(conn._cassette_path)
+                # The path should contain /mysql after driver module name
+                assert "/mysql" in path_str, (
+                    f"Expected '/mysql' in cassette path, got: {path_str}"
+                )
+                # Verify driver module name appears in path before mysql
+                idx_driver = path_str.index("adbc_driver_sqlite.dbapi")
+                idx_mysql = path_str.index("mysql")
+                assert idx_driver < idx_mysql, (
+                    f"Expected driver module before mysql: {path_str}"
+                )
+            """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_no_differentiator_for_pypi_driver(self, pytester: pytest.Pytester) -> None:
+        """PyPI drivers without 'driver' kwarg produce unchanged cassette paths."""
+        pytester.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.adbc_cassette("no_diff_test")
+            def test_no_differentiator(adbc_connect):
+                # Normal PyPI driver usage -- no driver= kwarg
+                conn = adbc_connect("adbc_driver_sqlite.dbapi")
+                path_str = str(conn._cassette_path)
+                # The cassette path should end with the driver module name, no extra segments
+                assert path_str.endswith("adbc_driver_sqlite.dbapi"), (
+                    f"Expected path ending with driver module name, got: {path_str}"
+                )
+            """
+        )
+        result = pytester.runpytest("-v")
+        result.assert_outcomes(passed=1)
+
+    def test_auto_patch_record_replay_with_differentiator(self, pytester: pytest.Pytester) -> None:
+        """Record-then-replay cycle with auto-patch and differentiator key."""
+        pytester.makeini("[pytest]\nadbc_auto_patch = adbc_driver_sqlite.dbapi\n")
+        pytester.makepyfile(
+            """
+            import pytest
+            import adbc_driver_sqlite.dbapi as driver
+
+            @pytest.mark.adbc_cassette("auto_diff_test")
+            def test_with_auto_patch():
+                # Normal PyPI driver usage -- no driver= kwarg, no differentiator
+                conn = driver.connect()
+                cursor = conn.cursor()
+                cursor.execute("SELECT 42 AS answer")
+                result = cursor.fetch_arrow_table()
+                assert result.column("answer").to_pylist() == [42]
+            """
+        )
+        # Record
+        record_result = pytester.runpytest("--adbc-record=once", "-v")
+        record_result.assert_outcomes(passed=1)
+
+        # Verify cassette created under driver subdir (no differentiator for PyPI driver)
+        cassette_base = (
+            pytester.path / "tests" / "cassettes" / "auto_diff_test" / "adbc_driver_sqlite.dbapi"
+        )
+        assert cassette_base.exists(), f"Expected cassette subdir at {cassette_base}"
+
+        # Replay
+        replay_result = pytester.runpytest("-v")
+        replay_result.assert_outcomes(passed=1)

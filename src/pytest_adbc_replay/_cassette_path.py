@@ -16,6 +16,7 @@ def node_id_to_cassette_path(
     cassette_dir: Path,
     *,
     driver_module_name: str | None = None,
+    differentiator_segments: tuple[str, ...] | None = None,
 ) -> Path:
     """
     Derive cassette directory path from a pytest node ID.
@@ -27,6 +28,10 @@ def node_id_to_cassette_path(
             per-driver cassette subdirectories. Used by the automatic ADBC patching
             feature (adbc_auto_patch) to separate cassettes by driver module.
             The full module name is used verbatim (e.g. "adbc_driver_snowflake").
+        differentiator_segments: Optional tuple of extra path segments appended after
+            the driver_module_name (or after the last regular segment if no
+            driver_module_name). Used by ``cassette_differentiator_keys`` to
+            disambiguate Foundry drivers sharing ``adbc_driver_manager.dbapi``.
 
     Examples:
         tests/foo/test_bar.py::TestClass::test_method
@@ -37,6 +42,10 @@ def node_id_to_cassette_path(
 
         tests/test_basic.py::test_fn with driver_module_name="adbc_driver_snowflake"
         -> cassette_dir/test_basic/test_fn/adbc_driver_snowflake
+
+        tests/test_basic.py::test_fn with driver_module_name="adbc_driver_manager.dbapi"
+        and differentiator_segments=("mysql",)
+        -> cassette_dir/test_basic/test_fn/adbc_driver_manager.dbapi/mysql
     """
     # Strip leading "tests/" prefix if present (cassettes live inside tests/cassettes/)
     path = re.sub(r"^tests/", "", node_id)
@@ -52,4 +61,7 @@ def node_id_to_cassette_path(
     # Append driver module name as final segment when provided (per-driver cassette layout)
     if driver_module_name is not None:
         all_segments.append(driver_module_name)
+    # Append differentiator segments (e.g. "mysql") for Foundry driver disambiguation
+    if differentiator_segments:
+        all_segments.extend(differentiator_segments)
     return cassette_dir.joinpath(*all_segments)
