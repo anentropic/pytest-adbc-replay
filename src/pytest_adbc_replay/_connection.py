@@ -47,6 +47,9 @@ class ReplayConnection:
         self._scrubber = scrubber
         self._real_conn: Any = None  # adbc_driver_manager.dbapi.Connection or None
 
+        # CLONE-SYNC: update adbc_clone() when adding attributes
+        self._wipe_state: dict[str, bool] = {"wiped": False}
+
         if mode != "none":
             # Only in record modes: import the driver and open a real connection.
             # This will fail loudly if the driver is not installed — expected.
@@ -57,6 +60,32 @@ class ReplayConnection:
                 driver = importlib.import_module(driver_module_name)
                 # ADBC drivers expose connect(**db_kwargs)
                 self._real_conn = driver.connect(**db_kwargs)
+
+    def adbc_clone(self) -> ReplayConnection:
+        """
+        Create a cloned connection sharing the same cassette and config.
+
+        Mirrors the ADBC spec: clones share the underlying database handle.
+        In record mode, delegates to the real connection's adbc_clone().
+        In replay mode, creates a new ReplayConnection with no real connection.
+
+        All clones share the same cassette path and wipe state.
+        Clone-of-clone is supported.
+        """
+        real_clone = self._real_conn.adbc_clone() if self._real_conn is not None else None
+        clone = ReplayConnection.__new__(ReplayConnection)
+        clone._driver_module_name = self._driver_module_name
+        clone._db_kwargs = self._db_kwargs
+        clone._mode = self._mode
+        clone._cassette_path = self._cassette_path
+        clone._dialect = self._dialect
+        clone._param_serialisers = self._param_serialisers
+        clone._scrub_keys_global = self._scrub_keys_global
+        clone._scrub_keys_per_driver = self._scrub_keys_per_driver
+        clone._scrubber = self._scrubber
+        clone._real_conn = real_clone
+        clone._wipe_state = self._wipe_state
+        return clone
 
     def cursor(self) -> ReplayCursor:
         """
@@ -76,6 +105,7 @@ class ReplayConnection:
             scrub_keys_per_driver=self._scrub_keys_per_driver,
             driver_name=self._driver_module_name,
             scrubber=self._scrubber,
+            wipe_state=self._wipe_state,
         )
 
     def close(self) -> None:

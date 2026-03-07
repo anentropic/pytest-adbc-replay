@@ -118,6 +118,7 @@ class ReplayCursor:
         scrub_keys_per_driver: dict[str, list[str]] | None = None,
         driver_name: str | None = None,
         scrubber: object = None,
+        wipe_state: dict[str, bool] | None = None,
     ) -> None:
         self._real_cursor = real_cursor
         self._mode = mode
@@ -138,8 +139,11 @@ class ReplayCursor:
         self._replay_queue: dict[tuple[str, str], deque[pa.Table]] = defaultdict(deque)
         # Next interaction index to write when recording
         self._record_index: int = 0
-        # For 'all' mode: tracks whether we've wiped the cassette dir yet
-        self._wiped: bool = False
+        # For 'all' mode: shared mutable container tracking whether cassette dir was wiped.
+        # When shared across clones, only the first cursor to execute() triggers rmtree.
+        self._wipe_state: dict[str, bool] = (
+            wipe_state if wipe_state is not None else {"wiped": False}
+        )
 
     def _ensure_initialised(self) -> None:
         """Lazy initialisation: populate replay queue from existing cassette on first execute()."""
@@ -147,10 +151,10 @@ class ReplayCursor:
             return
         self._initialised = True
         # 'all' mode: wipe the cassette directory on first execute() (not at fixture init)
-        if self._mode == "all" and not self._wiped:
+        if self._mode == "all" and not self._wipe_state["wiped"]:
             if self._cassette_path.exists():
                 shutil.rmtree(self._cassette_path)
-            self._wiped = True
+            self._wipe_state["wiped"] = True
             return  # Don't load from a directory we just deleted
         # Load existing cassette into replay queue (for none/once/new_episodes)
         interactions = load_all_interactions(self._cassette_path)
