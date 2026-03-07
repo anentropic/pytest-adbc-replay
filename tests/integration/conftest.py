@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import shutil
+import subprocess
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -81,3 +84,43 @@ def dbc_mysql_available() -> bool:
         pytest.skip("adbc_driver_manager not installed")
 
     return True
+
+
+def _find_adbc_driver_path() -> str | None:
+    """Detect the dbc driver install path for ADBC_DRIVER_PATH."""
+    # Check if already set
+    if os.environ.get("ADBC_DRIVER_PATH"):
+        return os.environ["ADBC_DRIVER_PATH"]
+
+    # Try asking dbc where drivers are installed
+    try:
+        result = subprocess.run(
+            ["dbc", "install", "mysql"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        # Output like: "Driver mysql 0.3.0 already installed at /path/to/drivers"
+        for line in result.stdout.splitlines():
+            if "already installed at" in line:
+                return line.split("already installed at")[-1].strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # Platform-specific default paths
+    home = Path.home()
+    candidates = [
+        home / "Library" / "Application Support" / "ADBC" / "Drivers",  # macOS
+        home / ".local" / "share" / "adbc" / "drivers",  # Linux
+    ]
+    for path in candidates:
+        if path.is_dir():
+            return str(path)
+
+    return None
+
+
+@pytest.fixture(scope="session")
+def adbc_driver_path() -> str | None:
+    """Resolve ADBC driver path so pytester subprocesses can find Foundry drivers."""
+    return _find_adbc_driver_path()

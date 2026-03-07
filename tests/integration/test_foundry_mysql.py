@@ -47,8 +47,12 @@ class TestFoundryMySQLRecordReplay:
         pytester: pytest.Pytester,
         mysql_dsn: str,
         dbc_mysql_available: Any,
+        adbc_driver_path: str | None,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Record with Foundry MySQL via wrap(), then replay without a DB connection."""
+        if adbc_driver_path:
+            monkeypatch.setenv("ADBC_DRIVER_PATH", adbc_driver_path)
         pytester.makepyfile(
             f"""
             import pytest
@@ -88,8 +92,12 @@ class TestFoundryMySQLRecordReplay:
         pytester: pytest.Pytester,
         mysql_dsn: str,
         dbc_mysql_available: Any,
+        adbc_driver_path: str | None,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Record with Foundry MySQL via auto-patch, then replay."""
+        if adbc_driver_path:
+            monkeypatch.setenv("ADBC_DRIVER_PATH", adbc_driver_path)
         pytester.makeini(
             """
             [pytest]
@@ -129,6 +137,8 @@ class TestFoundryMySQLRecordReplay:
         pytester: pytest.Pytester,
         mysql_dsn: str,
         dbc_mysql_available: Any,
+        adbc_driver_path: str | None,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """
         After recording, cassette files contain 'mysql' differentiator segment.
@@ -137,6 +147,8 @@ class TestFoundryMySQLRecordReplay:
         a "mysql" subdirectory under "adbc_driver_manager.dbapi" to disambiguate
         from other Foundry drivers sharing the same Python module.
         """
+        if adbc_driver_path:
+            monkeypatch.setenv("ADBC_DRIVER_PATH", adbc_driver_path)
         pytester.makeini(
             """
             [pytest]
