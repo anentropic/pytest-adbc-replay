@@ -1,14 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0.0a1
-milestone_name: Initial Release
-status: complete
-last_updated: "2026-03-02T17:39:52.028Z"
+milestone: v1.0
+milestone_name: milestone
+status: completed
+stopped_at: Phase 1 context gathered
+last_updated: "2026-03-07T11:59:07.606Z"
 progress:
-  total_phases: 10
-  completed_phases: 10
-  total_plans: 28
-  completed_plans: 28
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -46,6 +47,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-02
-Stopped at: v1.0.0a1 milestone complete — all 10 phases shipped, archived to .planning/milestones/
-Resume file: None (start fresh with /gsd:new-milestone)
+Last session: 2026-03-07T11:59:07.596Z
+Stopped at: Phase 1 context gathered
+Resume file: .planning/phases/01-test-compatibility-with-adbc-foundry-drivers/01-CONTEXT.md
