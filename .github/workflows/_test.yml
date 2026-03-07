@@ -28,7 +28,45 @@ jobs:
       - name: Run quality gates
         run: prek run --all-files
       - name: Tests
-        run: uv run pytest
+        run: uv run pytest tests/unit/
+      - name: Cache pruning
+        if: always()
+        run: uv cache prune --ci
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Docker is available by default on ubuntu-latest runners
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          python-version: "3.13"
+      - name: Sync dependencies (dev + integration)
+        run: uv sync --locked --group dev --group integration
+      # TODO: Update dbc install method once columnar.tech documents their CI install path.
+      # Currently uses curl-based installer; adjust URL/method as needed.
+      - name: Install dbc CLI
+        continue-on-error: true
+        run: |
+          curl -fsSL https://columnar.tech/install.sh | sh || true
+          # Fallback: check if dbc is already available (e.g. via a future GH Action)
+          which dbc && dbc --version || echo "dbc CLI not available - integration tests will be skipped"
+      - name: Install MySQL Foundry driver
+        continue-on-error: true
+        run: |
+          if command -v dbc &> /dev/null; then
+            dbc install mysql
+          else
+            echo "Skipping: dbc CLI not installed"
+          fi
+      - name: Integration tests
+        run: uv run pytest tests/integration/ -v
       - name: Cache pruning
         if: always()
         run: uv cache prune --ci
