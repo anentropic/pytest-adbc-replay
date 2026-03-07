@@ -52,19 +52,11 @@ jobs:
       # TODO: Update dbc install method once columnar.tech documents their CI install path.
       # Currently uses curl-based installer; adjust URL/method as needed.
       - name: Install dbc CLI
-        continue-on-error: true
         run: |
-          curl -fsSL https://columnar.tech/install.sh | sh || true
-          # Fallback: check if dbc is already available (e.g. via a future GH Action)
-          which dbc && dbc --version || echo "dbc CLI not available - integration tests will be skipped"
+          curl -fsSL https://columnar.tech/install.sh | sh
+          dbc --version
       - name: Install MySQL Foundry driver
-        continue-on-error: true
-        run: |
-          if command -v dbc &> /dev/null; then
-            dbc install mysql
-          else
-            echo "Skipping: dbc CLI not installed"
-          fi
+        run: dbc install mysql
       - name: Integration tests
         run: uv run pytest tests/integration/ -v
       - name: Cache pruning
