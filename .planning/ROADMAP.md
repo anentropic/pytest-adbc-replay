@@ -44,9 +44,9 @@ _Full phase details archived to `.planning/milestones/v1.0.0a1-ROADMAP.md`_
 **Goal:** Verify pytest-adbc-replay works with ADBC Foundry drivers (Go-based drivers via adbc_driver_manager.dbapi). Add cassette_differentiator_keys for shared-module path disambiguation, reorganize tests into unit/integration split, and create integration tests with real Foundry MySQL driver via testcontainers.
 **Requirements**: TBD
 **Depends on:** Phase 0
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md — Cassette differentiator keys feature (ini key, session/path threading, unit tests)
-- [ ] 01-02-PLAN.md — Test directory reorganization (tests/ to tests/unit/ + tests/integration/)
-- [ ] 01-03-PLAN.md — Foundry MySQL integration tests and CI workflow
+- [x] 01-02-PLAN.md — Test directory reorganization (tests/ to tests/unit/ + tests/integration/)
+- [x] 01-03-PLAN.md — Foundry MySQL integration tests and CI workflow
