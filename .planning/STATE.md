@@ -54,6 +54,7 @@ All decisions logged in PROJECT.md Key Decisions table (updated 2026-03-02).
 
 - Phase 1 added: Test compatibility with ADBC Foundry drivers
 - Phase 2 added: Pool clone support for ReplayConnection
+- Phase 3 added: Update docs with pool clone support
 
 ### Pending Todos
 

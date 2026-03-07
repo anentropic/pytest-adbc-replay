@@ -60,3 +60,13 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md — TDD: shared wipe state refactor + adbc_clone() implementation with unit tests
+
+### Phase 3: Update docs with pool clone support
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 2
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 3 to break down)
