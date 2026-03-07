@@ -38,3 +38,13 @@
 | 10. Per-driver Dialect Config | v1.0.0a1 | 3/3 | Complete | 2026-03-02 |
 
 _Full phase details archived to `.planning/milestones/v1.0.0a1-ROADMAP.md`_
+
+### Phase 1: Test compatibility with ADBC Foundry drivers
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 0
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 1 to break down)

@@ -32,6 +32,10 @@ All 10 phases, 28 plans complete.
 
 All decisions logged in PROJECT.md Key Decisions table (updated 2026-03-02).
 
+### Roadmap Evolution
+
+- Phase 1 added: Test compatibility with ADBC Foundry drivers
+
 ### Pending Todos
 
 None.
