@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 3 of 3
+current_plan: 1 of 1
 status: completed
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-07T19:40:40.645Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-07T20:45:13Z"
 progress:
   total_phases: 2
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 2
+  total_plans: 4
+  completed_plans: 4
   percent: 100
 ---
 
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** CI tests pass without warehouse credentials — record once locally, replay everywhere, with query changes visible as plain diffs in PRs.
-**Current focus:** Phase 1 - Test compatibility with ADBC Foundry drivers
+**Current focus:** Phase 2 - Pool clone support for ReplayConnection
 
 ## Current Position
 
-Phase: 01-test-compatibility-with-adbc-foundry-drivers
-Current Plan: 3 of 3
+Phase: 02-pool-clone-support-for-replayconnection
+Current Plan: 1 of 1
 Status: Complete
 
-Progress: [██████████] 100% - 3/3 plans complete
+Progress: [██████████] 100% - 4/4 plans complete (all phases)
 
 ## Accumulated Context
 
@@ -46,6 +46,9 @@ All decisions logged in PROJECT.md Key Decisions table (updated 2026-03-02).
 - [01-03] testcontainers manages Docker lifecycle (no CI services block needed)
 - [01-03] dbc CLI install with continue-on-error for CI resilience
 - [01-03] ADBC driver path resolved and forwarded to pytester subprocesses via env var
+- [02-01] Used __new__ bypass to create clones without triggering __init__ driver import
+- [02-01] Shared _wipe_state dict referenced by all clones prevents double-wipe in 'all' mode
+- [02-01] wipe_state parameter defaults to None in ReplayCursor for backward compatibility
 
 ### Roadmap Evolution
 
@@ -67,9 +70,9 @@ None.
 | 01-01      | 6min     | 2     | 6     |
 | 01-02      | 2min     | 1     | 15    |
 | 01-03      | ~20min   | 3     | 5     |
+| 02-01      | 3min     | 2     | 3     |
 
 ## Session Continuity
 
-Last session: 2026-03-07T19:40:40.642Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-pool-clone-support-for-replayconnection/02-CONTEXT.md
+Last session: 2026-03-07T20:45:13Z
+Stopped at: Completed 02-01-PLAN.md

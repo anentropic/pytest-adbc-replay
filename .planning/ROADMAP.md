@@ -56,7 +56,7 @@ Plans:
 **Goal:** Implement `adbc_clone()` on `ReplayConnection` so that connection pooling consumers (like adbc-poolhouse) can use cassette replay. Refactor per-cursor `_wiped` flag into a shared `_wipe_state` container threaded from connection to cursor, then add the `adbc_clone()` method that creates clones sharing config, cassette path, and wipe state.
 **Requirements**: CLONE-01, CLONE-02, CLONE-03, CLONE-04, CLONE-05, CLONE-06, CLONE-07, CLONE-08, CLONE-09
 **Depends on:** Phase 1
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 02-01-PLAN.md — TDD: shared wipe state refactor + adbc_clone() implementation with unit tests
+- [x] 02-01-PLAN.md — TDD: shared wipe state refactor + adbc_clone() implementation with unit tests
