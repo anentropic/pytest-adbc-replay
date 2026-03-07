@@ -47,6 +47,6 @@ _Full phase details archived to `.planning/milestones/v1.0.0a1-ROADMAP.md`_
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Cassette differentiator keys feature (ini key, session/path threading, unit tests)
+- [x] 01-01-PLAN.md — Cassette differentiator keys feature (ini key, session/path threading, unit tests)
 - [ ] 01-02-PLAN.md — Test directory reorganization (tests/ to tests/unit/ + tests/integration/)
 - [ ] 01-03-PLAN.md — Foundry MySQL integration tests and CI workflow
