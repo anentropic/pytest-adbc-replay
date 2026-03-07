@@ -38,8 +38,8 @@ def mysql_container() -> Generator[Any, None, None]:
     except ImportError:
         pytest.skip("testcontainers[mysql] not installed")
 
-    container = MySqlContainer("mysql:8.0")
     try:
+        container = MySqlContainer("mysql:8.0")
         container.start()
     except Exception as exc:
         pytest.skip(f"Failed to start MySQL container: {exc}")
