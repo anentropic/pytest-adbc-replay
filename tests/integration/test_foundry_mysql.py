@@ -18,7 +18,6 @@ Prerequisites:
 
 from __future__ import annotations
 
-import shutil
 from typing import TYPE_CHECKING
 
 import pytest
@@ -26,17 +25,7 @@ import pytest
 if TYPE_CHECKING:
     from typing import Any
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.skipif(
-        not shutil.which("docker"),
-        reason="Docker not available",
-    ),
-    pytest.mark.skipif(
-        not shutil.which("dbc"),
-        reason="dbc CLI not installed",
-    ),
-]
+pytestmark = pytest.mark.integration
 
 
 class TestFoundryMySQLRecordReplay:

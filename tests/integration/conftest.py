@@ -14,38 +14,15 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-def _docker_available() -> bool:
-    """Check if Docker CLI is available on the system."""
-    return shutil.which("docker") is not None
-
-
-def _dbc_available() -> bool:
-    """Check if the dbc CLI (columnar.tech) is available on the system."""
-    return shutil.which("dbc") is not None
-
-
 @pytest.fixture(scope="session")
 def mysql_container() -> Generator[Any, None, None]:
-    """
-    Session-scoped fixture that starts a MySQL container via testcontainers.
+    """Session-scoped fixture that starts a MySQL container via testcontainers."""
+    assert shutil.which("docker"), "Docker CLI not found on PATH"
 
-    Skips the test if:
-    - testcontainers is not installed
-    - Docker is not available
-    """
-    if not _docker_available():
-        pytest.skip("Docker not available")
+    from testcontainers.mysql import MySqlContainer  # pyright: ignore[reportMissingImports]
 
-    try:
-        from testcontainers.mysql import MySqlContainer  # pyright: ignore[reportMissingImports]
-    except ImportError:
-        pytest.skip("testcontainers[mysql] not installed")
-
-    try:
-        container = MySqlContainer("mysql:8.0")
-        container.start()
-    except Exception as exc:
-        pytest.skip(f"Failed to start MySQL container: {exc}")
+    container = MySqlContainer("mysql:8.0")
+    container.start()
 
     yield container
 
@@ -54,11 +31,7 @@ def mysql_container() -> Generator[Any, None, None]:
 
 @pytest.fixture(scope="session")
 def mysql_dsn(mysql_container: Any) -> str:
-    """
-    Extract the MySQL connection URI from the running testcontainer.
-
-    Returns a URI suitable for ADBC driver connection (mysql:// scheme).
-    """
+    """Extract the MySQL connection URI from the running testcontainer."""
     host = mysql_container.get_container_host_ip()
     port = mysql_container.get_exposed_port(3306)
     username = mysql_container.username
@@ -69,26 +42,16 @@ def mysql_dsn(mysql_container: Any) -> str:
 
 @pytest.fixture(scope="session")
 def dbc_mysql_available() -> bool:
-    """
-    Session-scoped fixture that checks if dbc CLI and MySQL Foundry driver are available.
+    """Assert dbc CLI and adbc_driver_manager are available."""
+    assert shutil.which("dbc"), "dbc CLI not found on PATH (install from https://columnar.tech)"
 
-    Returns True if available, skips the test otherwise.
-    """
-    if not _dbc_available():
-        pytest.skip("dbc CLI not installed (install from https://columnar.tech)")
-
-    # Check that adbc_driver_manager is importable (it's a project dependency, so it should be)
-    try:
-        import adbc_driver_manager.dbapi as _  # noqa: F401  # pyright: ignore[reportMissingModuleSource]
-    except ImportError:
-        pytest.skip("adbc_driver_manager not installed")
+    import adbc_driver_manager.dbapi as _  # noqa: F401  # pyright: ignore[reportMissingModuleSource]
 
     return True
 
 
 def _find_adbc_driver_path() -> str | None:
     """Detect the dbc driver install path for ADBC_DRIVER_PATH."""
-    # Check if already set
     if os.environ.get("ADBC_DRIVER_PATH"):
         return os.environ["ADBC_DRIVER_PATH"]
 
@@ -100,7 +63,6 @@ def _find_adbc_driver_path() -> str | None:
             text=True,
             timeout=10,
         )
-        # Output like: "Driver mysql 0.3.0 already installed at /path/to/drivers"
         for line in result.stdout.splitlines():
             if "already installed at" in line:
                 return line.split("already installed at")[-1].strip()
