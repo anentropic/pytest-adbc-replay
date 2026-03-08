@@ -18,14 +18,23 @@ Prerequisites:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import shutil
 
 import pytest
 
-if TYPE_CHECKING:
-    from typing import Any
-
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(scope="session", autouse=True)
+def dbc_mysql_available() -> None:
+    """
+    Assert dbc CLI and adbc_driver_manager are available.
+
+    (Fail fast if dbc or the Foundry MySQL driver is not installed)
+    """
+    assert shutil.which("dbc"), "dbc CLI not found on PATH (install from https://columnar.tech)"
+
+    import adbc_driver_manager.dbapi as _  # noqa: F401  # pyright: ignore[reportMissingModuleSource]
 
 
 class TestFoundryMySQLRecordReplay:
@@ -35,7 +44,6 @@ class TestFoundryMySQLRecordReplay:
         self,
         pytester: pytest.Pytester,
         mysql_dsn: str,
-        dbc_mysql_available: Any,
         adbc_driver_path: str | None,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -80,7 +88,6 @@ class TestFoundryMySQLRecordReplay:
         self,
         pytester: pytest.Pytester,
         mysql_dsn: str,
-        dbc_mysql_available: Any,
         adbc_driver_path: str | None,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -125,7 +132,6 @@ class TestFoundryMySQLRecordReplay:
         self,
         pytester: pytest.Pytester,
         mysql_dsn: str,
-        dbc_mysql_available: Any,
         adbc_driver_path: str | None,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:

@@ -40,16 +40,6 @@ def mysql_dsn(mysql_container: Any) -> str:
     return f"mysql://{username}:{password}@{host}:{port}/{dbname}"
 
 
-@pytest.fixture(scope="session")
-def dbc_mysql_available() -> bool:
-    """Assert dbc CLI and adbc_driver_manager are available."""
-    assert shutil.which("dbc"), "dbc CLI not found on PATH (install from https://columnar.tech)"
-
-    import adbc_driver_manager.dbapi as _  # noqa: F401  # pyright: ignore[reportMissingModuleSource]
-
-    return True
-
-
 def _find_adbc_driver_path() -> str | None:
     """Detect the dbc driver install path for ADBC_DRIVER_PATH."""
     if os.environ.get("ADBC_DRIVER_PATH"):
