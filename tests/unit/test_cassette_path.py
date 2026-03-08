@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pytest_adbc_replay._cassette_path import node_id_to_cassette_path
+from pytest_adbc_replay._session import ReplaySession
 
 _BASE = Path("tests/cassettes")
 
@@ -187,3 +188,71 @@ class TestDifferentiatorSegments:
             differentiator_segments=("mysql",),
         )
         assert result == _BASE / "test_foo" / "test_bar" / "mysql"
+
+
+class TestDifferentiatorSegmentSanitization:
+    """
+    Tests for _extract_differentiator_segments value sanitization.
+
+    Differentiator values from db_kwargs can be short driver names
+    (e.g. "mysql") or absolute .so paths (e.g. "/usr/lib/libadbc_driver_snowflake.so").
+    The method must sanitize values so that absolute paths never corrupt
+    the cassette directory layout via Path.joinpath().
+    """
+
+    def _make_session(self) -> ReplaySession:
+        return ReplaySession(mode="none")
+
+    def test_short_name_mysql_unchanged(self) -> None:
+        """Short driver name 'mysql' passes through unchanged."""
+        session = self._make_session()
+        result = session._extract_differentiator_segments({"driver": "mysql"}, ("driver",))
+        assert result == ("mysql",)
+
+    def test_short_name_databricks_unchanged(self) -> None:
+        """Short driver name 'databricks' passes through unchanged."""
+        session = self._make_session()
+        result = session._extract_differentiator_segments({"driver": "databricks"}, ("driver",))
+        assert result == ("databricks",)
+
+    def test_absolute_so_path_sanitized_to_stem(self) -> None:
+        """Absolute .so path is sanitized to just the filename stem."""
+        session = self._make_session()
+        result = session._extract_differentiator_segments(
+            {"driver": "/usr/lib/libadbc_driver_snowflake.so"}, ("driver",)
+        )
+        assert result == ("libadbc_driver_snowflake",)
+
+    def test_relative_path_with_extension_sanitized_to_stem(self) -> None:
+        """Relative path with extension is sanitized to just the stem."""
+        session = self._make_session()
+        result = session._extract_differentiator_segments(
+            {"driver": "drivers/libfoo.so"}, ("driver",)
+        )
+        assert result == ("libfoo",)
+
+    def test_multiple_dots_in_value_produces_stem(self) -> None:
+        """Value with multiple dots produces the stem (last extension stripped)."""
+        session = self._make_session()
+        result = session._extract_differentiator_segments(
+            {"driver": "lib.driver.v2.so"}, ("driver",)
+        )
+        assert result == ("lib.driver.v2",)
+
+    def test_plain_value_without_path_or_extension_unchanged(self) -> None:
+        """Plain value without path separators or extension is unchanged."""
+        session = self._make_session()
+        result = session._extract_differentiator_segments({"driver": "databricks"}, ("driver",))
+        assert result == ("databricks",)
+
+    def test_none_db_kwargs_returns_empty(self) -> None:
+        """None db_kwargs returns empty tuple."""
+        session = self._make_session()
+        result = session._extract_differentiator_segments(None, ("driver",))
+        assert result == ()
+
+    def test_empty_db_kwargs_returns_empty(self) -> None:
+        """Empty db_kwargs returns empty tuple."""
+        session = self._make_session()
+        result = session._extract_differentiator_segments({}, ("driver",))
+        assert result == ()
