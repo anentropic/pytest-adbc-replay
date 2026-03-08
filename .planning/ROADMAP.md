@@ -3,6 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0.0a1 Initial Release** — Phases 1-10 (shipped 2026-03-02)
+- ✅ **v1.0.0a2 Foundry & Pool Support** — Phases 1-3 (shipped 2026-03-08)
 
 ## Phases
 
@@ -22,6 +23,15 @@
 
 </details>
 
+<details>
+<summary>✅ v1.0.0a2 Foundry & Pool Support (Phases 1-3) — SHIPPED 2026-03-08</summary>
+
+- [x] Phase 1: Test compatibility with ADBC Foundry drivers (3/3 plans) — completed 2026-03-04
+- [x] Phase 2: Pool clone support for ReplayConnection (1/1 plan) — completed 2026-03-07
+- [x] Phase 3: Update docs with pool clone support (2/2 plans) — completed 2026-03-08
+
+</details>
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -36,38 +46,8 @@
 | 8. Automatic ADBC Wrapping | v1.0.0a1 | 3/3 | Complete | 2026-03-02 |
 | 9. Scrubber Interface | v1.0.0a1 | 3/3 | Complete | 2026-03-02 |
 | 10. Per-driver Dialect Config | v1.0.0a1 | 3/3 | Complete | 2026-03-02 |
+| 1. Test compatibility with ADBC Foundry drivers | v1.0.0a2 | 3/3 | Complete | 2026-03-04 |
+| 2. Pool clone support for ReplayConnection | v1.0.0a2 | 1/1 | Complete | 2026-03-07 |
+| 3. Update docs with pool clone support | v1.0.0a2 | 2/2 | Complete | 2026-03-08 |
 
-_Full phase details archived to `.planning/milestones/v1.0.0a1-ROADMAP.md`_
-
-### Phase 1: Test compatibility with ADBC Foundry drivers
-
-**Goal:** Verify pytest-adbc-replay works with ADBC Foundry drivers (Go-based drivers via adbc_driver_manager.dbapi). Add cassette_differentiator_keys for shared-module path disambiguation, reorganize tests into unit/integration split, and create integration tests with real Foundry MySQL driver via testcontainers.
-**Requirements**: TBD
-**Depends on:** Phase 0
-**Plans:** 3/3 plans complete
-
-Plans:
-- [x] 01-01-PLAN.md — Cassette differentiator keys feature (ini key, session/path threading, unit tests)
-- [x] 01-02-PLAN.md — Test directory reorganization (tests/ to tests/unit/ + tests/integration/)
-- [x] 01-03-PLAN.md — Foundry MySQL integration tests and CI workflow
-
-### Phase 2: Pool clone support for ReplayConnection
-
-**Goal:** Implement `adbc_clone()` on `ReplayConnection` so that connection pooling consumers (like adbc-poolhouse) can use cassette replay. Refactor per-cursor `_wiped` flag into a shared `_wipe_state` container threaded from connection to cursor, then add the `adbc_clone()` method that creates clones sharing config, cassette path, and wipe state.
-**Requirements**: CLONE-01, CLONE-02, CLONE-03, CLONE-04, CLONE-05, CLONE-06, CLONE-07, CLONE-08, CLONE-09
-**Depends on:** Phase 1
-**Plans:** 1/1 plans complete
-
-Plans:
-- [x] 02-01-PLAN.md — TDD: shared wipe state refactor + adbc_clone() implementation with unit tests
-
-### Phase 3: Update docs with pool clone support
-
-**Goal:** Document the `adbc_clone()` / connection pooling support added in Phase 2. Create a how-to guide, dedicated reference page, explanation article, and update existing fixtures reference -- all following the established Diataxis documentation framework.
-**Requirements**: DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, DOC-06
-**Depends on:** Phase 2
-**Plans:** 2/2 plans complete
-
-Plans:
-- [x] 03-01-PLAN.md — Create content pages (how-to guide, reference page, explanation article, fixtures.md update)
-- [x] 03-02-PLAN.md — Wire navigation (index pages, mkdocs.yml) and validate build
+_Full phase details archived to `.planning/milestones/`_

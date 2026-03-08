@@ -2,7 +2,7 @@
 
 ## What This Is
 
-`pytest-adbc-replay` is a pytest plugin for record/replay testing of ADBC database connections. It intercepts queries at the ADBC cursor level, records results to cassette files (Arrow IPC + pretty-printed SQL + JSON parameters), and replays them in subsequent test runs — eliminating the need for live cloud warehouse access (Snowflake, Databricks, BigQuery, etc.) in CI. It supports automatic driver patching via `adbc_auto_patch`, sensitive-data scrubbing via `adbc_scrub_keys` and `adbc_scrubber`, and per-driver SQL dialect configuration. It is designed to pair with `pytest-recording` (VCR.py wrapper) in projects that use both HTTP APIs and ADBC connections.
+`pytest-adbc-replay` is a pytest plugin for record/replay testing of ADBC database connections. It intercepts queries at the ADBC cursor level, records results to cassette files (Arrow IPC + pretty-printed SQL + JSON parameters), and replays them in subsequent test runs — eliminating the need for live cloud warehouse access (Snowflake, Databricks, BigQuery, etc.) in CI. It supports automatic driver patching via `adbc_auto_patch`, sensitive-data scrubbing via `adbc_scrub_keys` and `adbc_scrubber`, per-driver SQL dialect configuration, and connection pooling via `adbc_clone()`. It is designed to pair with `pytest-recording` (VCR.py wrapper) in projects that use both HTTP APIs and ADBC connections.
 
 ## Core Value
 
@@ -34,6 +34,11 @@ CI tests pass without warehouse credentials — record once locally, replay ever
 - ✓ `adbc_scrubber` fixture with `(params, driver_name)` signature for per-driver scrubbing logic — v1.0.0a1 (Phase 9)
 - ✓ `adbc_dialect` as per-driver linelist (`adbc_driver_snowflake: snowflake` pattern) — v1.0.0a1 (Phase 10)
 
+- ✓ `cassette_differentiator_keys` ini key for shared-module path disambiguation (Foundry drivers) — v1.0.0a2
+- ✓ Foundry MySQL integration tests via testcontainers with CI workflow — v1.0.0a2
+- ✓ `ReplayConnection.adbc_clone()` for connection pool support (shared cassette, shared wipe state) — v1.0.0a2
+- ✓ Connection pooling documentation (how-to, reference, explanation) — v1.0.0a2
+
 ### Active
 
 (None — no active milestone. Define requirements via `/gsd:new-milestone`.)
@@ -50,7 +55,7 @@ CI tests pass without warehouse credentials — record once locally, replay ever
 ## Context
 
 - **Domain**: pytest plugin ecosystem; mirrors `pytest-recording` / VCR.py conventions
-- **Shipped**: v1.0.0a1 — 10 phases, 28 plans, 130 commits, 150 files, 1,719 Python LOC
+- **Shipped**: v1.0.0a2 — 13 phases total (10 + 3), 34 plans, 173 commits, 1,861 Python LOC
 - **Tech stack**: Python; `pyarrow` (Arrow IPC), `sqlglot` (SQL normalisation), `adbc-driver-manager` (type references), `pytest` — no other core dependencies
 - **Why ADBC cursor interception**: VCR.py intercepts HTTP but warehouse connectors vendor their own HTTP libraries, making interception fragile. ADBC cursor interface is uniform, stable, and narrow — the right seam.
 - **Key prior art**: `pytest-recording` (model for UX), `snowflake-vcrpy` (avoided due to vendoring conflicts and Snowflake-only scope)
@@ -90,6 +95,11 @@ CI tests pass without warehouse credentials — record once locally, replay ever
 | REDACTED sentinel (fixed string) | Simple, predictable; no config knob needed | ✓ Good |
 | `adbc_dialect` as linelist with per-driver colon syntax | Consistent pattern across all per-driver ini keys | ✓ Good |
 | marker `dialect=` reframed as escape hatch | Per-driver ini is the correct primary workflow; per-test marker is rarely needed | ✓ Good |
+| Default `differentiator_keys` is `("driver",)` | Transparent for PyPI drivers, auto-works for Foundry shared-module paths | ✓ Good |
+| `__new__` bypass for `adbc_clone()` | Creates clones without triggering `__init__` driver import | ✓ Good |
+| Shared `_wipe_state` dict across clones | Prevents double-wipe in `all` mode; mutable dict reference shared by source and all clones | ✓ Good |
+| pytester with f-string DSN injection | Subprocess test isolation with real databases for integration tests | ✓ Good |
+| testcontainers for Docker lifecycle | No CI services block needed; test manages its own container | ✓ Good |
 
 ---
-*Last updated: 2026-03-02 after v1.0.0a1 milestone*
+*Last updated: 2026-03-08 after v1.0.0a2 milestone*

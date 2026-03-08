@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.0.0a2 Foundry & Pool Support (Shipped: 2026-03-08)
+
+**Phases completed:** 3 phases, 6 plans, 13 tasks
+
+**Key accomplishments:**
+- `cassette_differentiator_keys` ini key for Foundry driver shared-module path disambiguation
+- Test reorganization into `tests/unit/` + `tests/integration/` split
+- Integration tests with real Foundry MySQL driver via testcontainers + CI workflow
+- `adbc_clone()` on `ReplayConnection` for connection pool support (shared cassette, shared wipe state)
+- Shared `_wipe_state` dict refactor preventing double-wipe across pool clones in `all` mode
+- Full Diataxis documentation for connection pooling (how-to guide, reference page, explanation article, fixtures.md update)
+
+**Git range:** 2026-03-02 → 2026-03-08 (43 commits, 148 files, +6062/-305 lines)
+**Source:** 1,861 Python LOC (src/)
+
+---
+
 ## v1.0.0a1 Initial Release (Shipped: 2026-03-02)
 
 **Phases completed:** 10 phases, 28 plans, 6 tasks

@@ -55,6 +55,52 @@
 
 ---
 
+## Milestone: v1.0.0a2 — Foundry & Pool Support
+
+**Shipped:** 2026-03-08
+**Phases:** 3 | **Plans:** 6 | **Timeline:** 6 days (2026-03-02 → 2026-03-08)
+
+### What Was Built
+
+- `cassette_differentiator_keys` ini key for Foundry driver shared-module path disambiguation
+- Test directory reorganization: `tests/` split into `tests/unit/` + `tests/integration/`
+- Integration tests with real Foundry MySQL driver via testcontainers (Docker-managed lifecycle)
+- `ReplayConnection.adbc_clone()` for connection pool support -- shared cassette path, shared wipe state across clones
+- Shared `_wipe_state` dict refactor preventing double-wipe across pool clones in `all` mode
+- Connection pooling documentation: how-to guide, reference page, explanation article with mermaid lifecycle diagram
+
+### What Worked
+
+- **TDD for adbc_clone()**: Writing tests before the implementation made the shared-wipe-state behavior trivially correct on first attempt. The `__new__` bypass pattern was discovered during implementation rather than design.
+- **Informal milestone**: Skipping `/gsd:new-milestone` and just adding phases manually worked fine for a small, focused milestone. The formal requirements ceremony would have been overhead for 3 phases.
+- **Auto-advance pipeline**: Using `--auto` to chain plan → execute → verify in one pass reduced manual intervention. All three phases completed without needing manual checkpoints.
+- **Humanizer on docs**: Caught a redundant section and a few word choices ("mirrors" → "follows") that would have looked AI-generated.
+
+### What Was Inefficient
+
+- **No formal REQUIREMENTS.md**: Without requirements, the milestone had no traceability. The CLONE-* and DOC-* requirement IDs were defined ad-hoc in plans rather than tracked centrally. This worked because the scope was small, but would not scale.
+- **Phase 1 integration tests took ~20min**: The testcontainers + Foundry driver setup involved a human-verify checkpoint for Docker availability. This was the only phase that needed manual intervention.
+
+### Patterns Established
+
+- **`__new__` bypass for clone creation**: When creating objects that share state with a source but must not trigger `__init__` side effects (like driver imports), use `cls.__new__(cls)` and copy attributes manually.
+- **Shared mutable dict for cross-object coordination**: A shared `{"wiped": False}` dict referenced by multiple objects provides simple coordination without coupling. Each object checks and updates the same dict reference.
+- **testcontainers for integration testing**: Docker container lifecycle managed by the test framework, not CI services. Tests are self-contained and run locally the same as in CI.
+
+### Key Lessons
+
+1. **Informal milestones work for small focused work** -- 3 phases with clear goals don't need the full requirements ceremony. But traceability suffers.
+2. **Auto-advance is worth the setup** -- chaining plan → execute → verify for a docs-only phase saved several `/clear` and manual invocation cycles.
+3. **Integration tests with real databases are worth the Docker overhead** -- the Foundry MySQL tests caught a real cassette path issue that unit tests would have missed.
+
+### Cost Observations
+
+- Model mix: quality profile (opus for execution, sonnet for verification)
+- Sessions: ~3-4 sessions across 6 days (intermittent work)
+- Notable: Phase 3 (docs) completed in ~10min total execution time despite 2 plans and 5 tasks -- established patterns made content generation fast
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -62,15 +108,19 @@
 | Milestone | Timeline | Phases | Key Change |
 |-----------|----------|--------|------------|
 | v1.0.0a1 | 3 days | 10 | Initial project — established all core patterns |
+| v1.0.0a2 | 6 days | 3 | Foundry compat + connection pooling — informal milestone, auto-advance pipeline |
 
 ### Cumulative Quality
 
 | Milestone | Tests | Coverage | Zero-Dep Additions |
 |-----------|-------|----------|-------------------|
 | v1.0.0a1 | 188+ | unknown | 0 (pyarrow/sqlglot already required) |
+| v1.0.0a2 | 200+ | unknown | 0 (testcontainers is dev-only) |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Linelist ini keys provide a consistent per-driver configuration model
 2. Set the release version once at packaging phase, don't drift
+3. TDD works well for shared-state features (scrubbing pipeline in a1, wipe state in a2)
+4. Humanizer on docs catches patterns that erode trust in documentation quality
 
