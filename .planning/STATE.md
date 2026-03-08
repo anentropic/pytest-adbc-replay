@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_plan: 1 of 1
-status: completed
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-08T00:01:21.490Z"
+current_plan: 1 of 2
+status: executing
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-08T00:26:40.113Z"
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
-  percent: 100
+  total_plans: 6
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-02)
 
 **Core value:** CI tests pass without warehouse credentials — record once locally, replay everywhere, with query changes visible as plain diffs in PRs.
-**Current focus:** Phase 2 - Pool clone support for ReplayConnection
+**Current focus:** Phase 3 - Update docs with pool clone support
 
 ## Current Position
 
-Phase: 02-pool-clone-support-for-replayconnection
-Current Plan: 1 of 1
-Status: Complete
+Phase: 03-update-docs-with-pool-clone-support
+Current Plan: 1 of 2
+Status: In Progress
 
-Progress: [██████████] 100% - 4/4 plans complete (all phases)
+Progress: [████████░░] 83% - 5/6 plans complete (all phases)
 
 ## Accumulated Context
 
@@ -49,6 +49,8 @@ All decisions logged in PROJECT.md Key Decisions table (updated 2026-03-02).
 - [02-01] Used __new__ bypass to create clones without triggering __init__ driver import
 - [02-01] Shared _wipe_state dict referenced by all clones prevents double-wipe in 'all' mode
 - [02-01] wipe_state parameter defaults to None in ReplayCursor for backward compatibility
+- [Phase 03]: [03-01] Used mermaid sequenceDiagram for pool replay lifecycle
+- [Phase 03]: [03-01] Warning admonition placed after wrap() section to cover both approaches
 
 ### Roadmap Evolution
 
@@ -72,8 +74,9 @@ None.
 | 01-02      | 2min     | 1     | 15    |
 | 01-03      | ~20min   | 3     | 5     |
 | 02-01      | 3min     | 2     | 3     |
+| Phase 03 P01 | 3min | 3 tasks | 4 files |
 
 ## Session Continuity
 
-Last session: 2026-03-08T00:01:21.484Z
-Stopped at: Phase 3 context gathered
+Last session: 2026-03-08T00:26:40.111Z
+Stopped at: Completed 03-01-PLAN.md
