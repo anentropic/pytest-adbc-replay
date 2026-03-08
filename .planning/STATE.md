@@ -52,4 +52,4 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Milestone v1.0.0a2 complete
+Stopped at: Completed quick task 2 (fix cassette path resolution for pool connections)
