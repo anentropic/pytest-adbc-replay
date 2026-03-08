@@ -49,7 +49,12 @@ None.
 
 None.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 2 | Fix cassette path resolution broken for pool-based connections | 2026-03-08 | a87b17f | [2-fix-cassette-path-resolution-broken-for-](./quick/2-fix-cassette-path-resolution-broken-for-/) |
+
 ## Session Continuity
 
-Last session: 2026-03-08
-Stopped at: Completed quick task 2 (fix cassette path resolution for pool connections)
+Last activity: 2026-03-08 - Completed quick task 2: Fix cassette path resolution broken for pool-based connections
