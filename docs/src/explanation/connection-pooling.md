@@ -57,13 +57,13 @@ If two cursors from different clones execute concurrently -- for example, in mul
 
 In typical single-threaded pytest runs, this is never a problem. Cursors execute sequentially: one cursor completes all its queries before another cursor starts. The sequential access model matches how most test code works -- tests call the system under test, which uses one pool connection at a time.
 
-This is a known limitation, not a bug. Supporting truly concurrent replay would require a shared, query-matched replay mechanism rather than simple queue-based replay. The sequential model keeps the implementation simple and covers the common case.
+This is a known limitation, not a bug. Supporting truly concurrent replay would require a shared, query-matched replay mechanism rather than simple queue-based replay. The sequential model is enough for typical single-threaded test runs.
 
 ## ADBC spec context
 
 `adbc_clone()` is an ADBC extension, not part of the DBAPI 2.0 standard. In the ADBC Python API, calling `connection.adbc_clone()` creates a new `Connection` sharing the same underlying `AdbcDatabase`. The clone has its own transaction state and cursor lifecycle but shares the database handle.
 
-pytest-adbc-replay's `ReplayConnection.adbc_clone()` mirrors this behaviour: the clone shares configuration, cassette path, and wipe state with its source, but maintains independent cursor state.
+pytest-adbc-replay's `ReplayConnection.adbc_clone()` follows this pattern: the clone shares configuration, cassette path, and wipe state with its source, but maintains independent cursor state.
 
 See the [ADBC Python API documentation](https://arrow.apache.org/adbc/current/python/api/adbc_driver_manager.html) for the upstream specification.
 

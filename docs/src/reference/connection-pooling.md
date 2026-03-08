@@ -8,7 +8,7 @@ This page documents connection pooling support via `ReplayConnection.adbc_clone(
 
 **Returns:** `ReplayConnection`
 
-Creates a cloned connection sharing the same cassette path and configuration. Mirrors the ADBC spec where clones share the underlying database handle.
+Creates a cloned connection sharing the same cassette path and configuration. Follows the ADBC spec where clones share the underlying database handle.
 
 In record mode, the clone delegates to the real connection's `adbc_clone()` method. In replay mode, the clone has no real connection (`_real_conn = None`) and replays entirely from the shared cassette.
 
