@@ -184,7 +184,27 @@ def adbc_param_serialisers():
 
 This differs from returning `{decimal.Decimal: ...}` directly, which merges your entry with the built-in registry. The `NO_DEFAULT_SERIALISERS | {...}` form gives you only the types you listed.
 
+---
+
+## `ReplayConnection.adbc_clone()`
+
+!!! note
+    `adbc_clone()` is a method on `ReplayConnection`, not a pytest fixture. It is documented here for discoverability alongside the fixtures that create connections.
+
+**Returns:** `ReplayConnection`
+
+Creates a cloned connection sharing the same cassette path, configuration, and wipe state. Used internally by connection pool libraries (e.g. adbc-poolhouse) that call `adbc_clone()` to create checkout connections.
+
+**Interface:**
+
+```text
+connection.adbc_clone() -> ReplayConnection
+```
+
+See [Connection Pooling reference](connection-pooling.md) for full details on shared semantics and limitations.
+
 ## Related
 
-- [Scrub sensitive values](../how-to/scrub-sensitive-values.md) — how-to guide for `adbc_scrubber`
-- [Register custom parameter serialisers](../how-to/custom-param-serialisers.md) — how-to guide for `adbc_param_serialisers`
+- [Scrub sensitive values](../how-to/scrub-sensitive-values.md) -- how-to guide for `adbc_scrubber`
+- [Register custom parameter serialisers](../how-to/custom-param-serialisers.md) -- how-to guide for `adbc_param_serialisers`
+- [Connection Pooling reference](connection-pooling.md) -- `adbc_clone()` method spec and shared cassette semantics
