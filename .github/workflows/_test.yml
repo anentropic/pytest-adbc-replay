@@ -53,7 +53,7 @@ jobs:
       # Currently uses curl-based installer; adjust URL/method as needed.
       - name: Install dbc CLI
         run: |
-          curl -fsSL https://columnar.tech/install.sh | sh
+          curl -LsSf https://dbc.columnar.tech/install.sh | sh
           dbc --version
       - name: Install MySQL Foundry driver
         run: dbc install mysql
