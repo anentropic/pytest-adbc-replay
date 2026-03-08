@@ -66,8 +66,8 @@ Plans:
 **Goal:** Document the `adbc_clone()` / connection pooling support added in Phase 2. Create a how-to guide, dedicated reference page, explanation article, and update existing fixtures reference -- all following the established Diataxis documentation framework.
 **Requirements**: DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, DOC-06
 **Depends on:** Phase 2
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 03-01-PLAN.md — Create content pages (how-to guide, reference page, explanation article, fixtures.md update)
-- [ ] 03-02-PLAN.md — Wire navigation (index pages, mkdocs.yml) and validate build
+- [x] 03-01-PLAN.md — Create content pages (how-to guide, reference page, explanation article, fixtures.md update)
+- [x] 03-02-PLAN.md — Wire navigation (index pages, mkdocs.yml) and validate build
