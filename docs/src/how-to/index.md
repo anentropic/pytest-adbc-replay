@@ -10,6 +10,7 @@ These guides assume you have completed the [Tutorial](../tutorial/index.md) and 
 - [Use multiple drivers in one session](multiple-drivers.md) — wrap connections to different databases
 - [Scrub sensitive values from cassettes](scrub-sensitive-values.md) — remove tokens or passwords before cassettes are written to disk
 - [Register custom parameter serialisers](custom-param-serialisers.md) — handle parameter types not covered by the default JSON encoder
+- [Use with connection pools](connection-pools.md) — test code that uses connection pool libraries like adbc-poolhouse
 
 ## When to use a How-To guide
 

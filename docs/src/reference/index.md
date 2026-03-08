@@ -11,6 +11,7 @@ All values listed here match the implementation. The [README](https://github.com
 - [Configuration](configuration.md) — all CLI flags and ini keys with types, defaults, and descriptions
 - [Record Modes](record-modes.md) — the four record modes and their behaviour
 - [Fixtures](fixtures.md) — `adbc_replay`, `adbc_scrubber`, and `adbc_param_serialisers`
+- [Connection Pooling](connection-pooling.md) — `ReplayConnection.adbc_clone()` behaviour, shared cassette semantics, and limitations
 - [Markers](markers.md) — `@pytest.mark.adbc_cassette` arguments and effects
 - [Exceptions](exceptions.md) — `CassetteMissError` and `NormalisationWarning`
 - [Cassette Format](cassette-format.md) — file structure, naming convention, and field descriptions

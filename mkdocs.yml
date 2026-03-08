@@ -98,6 +98,7 @@ nav:
     - Configuration: reference/configuration.md
     - Record Modes: reference/record-modes.md
     - Fixtures: reference/fixtures.md
+    - Connection Pooling: reference/connection-pooling.md
     - Markers: reference/markers.md
     - Exceptions: reference/exceptions.md
     - Cassette Format: reference/cassette-format.md
