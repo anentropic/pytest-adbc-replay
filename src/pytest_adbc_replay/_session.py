@@ -57,10 +57,14 @@ class ReplaySession:
         Looks up each key in ``keys`` within ``db_kwargs`` and collects
         ``str(value)`` for keys that exist. Returns an empty tuple when
         ``db_kwargs`` is ``None`` or no keys match.
+
+        Values are sanitized via ``Path(value).stem`` to strip directory
+        components and file extensions, preventing absolute paths from
+        corrupting the cassette directory layout.
         """
         if not db_kwargs or not keys:
             return ()
-        return tuple(str(db_kwargs[k]) for k in keys if k in db_kwargs)
+        return tuple(Path(str(db_kwargs[k])).stem for k in keys if k in db_kwargs)
 
     def wrap(
         self,
