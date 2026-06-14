@@ -26,7 +26,7 @@ Each member carries one of five labels:
 | Member | Replay-mode behavior | Notes |
 |---|---|---|
 | `execute` | implemented | Looks up the recorded interaction by normalised SQL and loads the result. |
-| `executemany` | implemented | Replays the recorded interaction for the batch. |
+| `executemany` | no-op | Delegates to the real cursor in record mode; no-op in replay (does not load a result). Real ADBC `executemany` produces no result set either. |
 | `executescript` | no-op | Silent in replay; DDL side effects are already baked into recorded results. Delegates in record mode. |
 | `fetchone` | lenient (deviates from ADBC) | Re-readable result. Raises `ProgrammingError` if called before `execute()`. |
 | `fetchmany` | lenient (deviates from ADBC) | Re-readable result. Raises `ProgrammingError` if called before `execute()`. |

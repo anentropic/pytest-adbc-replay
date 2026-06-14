@@ -73,7 +73,7 @@ def _replay_connection(tmp_path: Path) -> ReplayConnection:
 EXPECTED_SURFACE: dict[str, str] = {
     # DBAPI core
     "execute": "implemented",
-    "executemany": "implemented",
+    "executemany": "no-op",
     "executescript": "no-op",
     "close": "implemented",
     "next": "implemented",
