@@ -102,5 +102,6 @@ nav:
     - Markers: reference/markers.md
     - Exceptions: reference/exceptions.md
     - Cassette Format: reference/cassette-format.md
+    - Cursor Surface: reference/cursor-surface.md
     - API Reference: reference/pytest_adbc_replay/plugin.md
   - Explanation: explanation/

@@ -15,6 +15,7 @@ All values listed here match the implementation. The [README](https://github.com
 - [Markers](markers.md) — `@pytest.mark.adbc_cassette` arguments and effects
 - [Exceptions](exceptions.md) — `CassetteMissError` and `NormalisationWarning`
 - [Cassette Format](cassette-format.md) — file structure, naming convention, and field descriptions
+- [Cursor Surface](cursor-surface.md) — every ADBC Cursor member and its replay-mode behavior
 
 ## Auto-generated API reference
 
