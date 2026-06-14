@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import pyarrow as pa
 import pytest
@@ -213,7 +213,7 @@ class TestFetchDf:
         pd = pytest.importorskip("pandas")
         table = pa.table({"id": [1, 2, 3], "name": ["a", "b", "c"]})
         cursor = _executed_cursor(tmp_path, table)
-        df = cursor.fetch_df()
+        df = cast("Any", cursor.fetch_df())
         assert isinstance(df, pd.DataFrame)
         assert df["id"].tolist() == [1, 2, 3]
         assert df["name"].tolist() == ["a", "b", "c"]
@@ -222,7 +222,7 @@ class TestFetchDf:
         pytest.importorskip("pandas")
         table = pa.table({"id": pa.array([], type=pa.int64())})
         cursor = _executed_cursor(tmp_path, table)
-        df = cursor.fetch_df()
+        df = cast("Any", cursor.fetch_df())
         assert len(df) == 0
 
     def test_before_execute_raises(self, tmp_path: Path) -> None:
@@ -257,7 +257,7 @@ class TestFetchPolars:
         pl = pytest.importorskip("polars")
         table = pa.table({"id": [1, 2, 3], "name": ["a", "b", "c"]})
         cursor = _executed_cursor(tmp_path, table)
-        df = cursor.fetch_polars()
+        df = cast("Any", cursor.fetch_polars())
         assert isinstance(df, pl.DataFrame)
         assert df["id"].to_list() == [1, 2, 3]
         assert df["name"].to_list() == ["a", "b", "c"]
@@ -266,7 +266,7 @@ class TestFetchPolars:
         pytest.importorskip("polars")
         table = pa.table({"id": pa.array([], type=pa.int64())})
         cursor = _executed_cursor(tmp_path, table)
-        df = cursor.fetch_polars()
+        df = cast("Any", cursor.fetch_polars())
         assert len(df) == 0
 
     def test_before_execute_raises(self, tmp_path: Path) -> None:

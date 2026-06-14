@@ -359,6 +359,44 @@ class ReplayCursor:
         """Silent alias of fetch_arrow_table() (FETCH-03 / D3) — no warning, lenient."""
         return self.fetch_arrow_table()
 
+    def fetch_df(self) -> object:
+        """
+        Fetch the recorded result as a pandas.DataFrame (FETCH-04).
+
+        Lazily imports pandas inside the method (no module-level import, no
+        packaging extra). Raises an actionable error naming pandas if absent.
+        """
+        self._require_executed("fetch_df")
+        try:
+            import pandas  # noqa: PLC0415  (lazy import by design)
+        except ImportError as exc:
+            raise ModuleNotFoundError(
+                "fetch_df() requires pandas, which is not installed. "
+                "Install it with: pip install pandas"
+            ) from exc
+        self._result_consumed = True
+        # Convert via the imported pandas module so the import is genuinely used
+        # (pa.Table.to_pandas() yields a pandas.DataFrame once pandas is present).
+        return pandas.DataFrame(self._pending.to_pandas())
+
+    def fetch_polars(self) -> object:
+        """
+        Fetch the recorded result as a polars.DataFrame (FETCH-05).
+
+        Lazily imports polars inside the method (no module-level import, no
+        packaging extra). Raises an actionable error naming polars if absent.
+        """
+        self._require_executed("fetch_polars")
+        try:
+            import polars  # noqa: PLC0415  (lazy import by design)
+        except ImportError as exc:
+            raise ModuleNotFoundError(
+                "fetch_polars() requires polars, which is not installed. "
+                "Install it with: pip install polars"
+            ) from exc
+        self._result_consumed = True
+        return polars.from_arrow(self._pending)
+
     def fetchall(self) -> list[tuple[object, ...]]:
         """Fetch all rows of the result as a list of tuples (DBAPI2)."""
         if self._pending.num_rows == 0:
