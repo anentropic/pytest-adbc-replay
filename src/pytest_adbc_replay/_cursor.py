@@ -9,6 +9,8 @@ from pathlib import Path  # noqa: TC003
 from typing import TYPE_CHECKING, Any
 
 import pyarrow as pa
+from adbc_driver_manager import AdbcStatusCode
+from adbc_driver_manager.dbapi import ProgrammingError
 
 from pytest_adbc_replay._cassette_io import (
     cassette_has_interactions,
@@ -133,6 +135,12 @@ class ReplayCursor:
         self._pending: pa.Table = pa.table({})
         # Offset for DBAPI2 fetch methods
         self._fetch_offset: int = 0
+        # Per-result consumption state for the NEW strict fetch methods only
+        # (fetch_record_batch/fetch_arrow/fetch_df/fetch_polars). Existing
+        # permissive methods do not read these. Reset at the end of execute().
+        self._executed: bool = False
+        self._arrow_consumed: bool = False
+        self._result_consumed: bool = False
         # Lazy init flag — cassette is scanned on first execute() call
         self._initialised: bool = False
         # Ordered-queue replay: key -> deque of pa.Table results (CASS-06)
@@ -281,6 +289,15 @@ class ReplayCursor:
             self._pending = all_table
             self._fetch_offset = 0
 
+        # Reset per-result consumption state for the NEW strict fetch methods.
+        # Placed at method-body level (un-indented) AFTER the whole mode
+        # if/elif chain so it applies to all four modes (none/once/
+        # new_episodes/all). All branches fall through here with no early
+        # return, so a single trailing block resets consistently.
+        self._executed = True
+        self._arrow_consumed = False
+        self._result_consumed = False
+
     def executemany(self, operation: str, seq_of_parameters: Any) -> None:
         """Execute a query with multiple parameter sets."""
         if self._real_cursor is not None:
@@ -290,6 +307,57 @@ class ReplayCursor:
     def fetch_arrow_table(self) -> pa.Table:
         """Fetch all rows of the result as a PyArrow Table."""
         return self._pending
+
+    # -----------------------------------------------------------------------
+    # Arrow & DataFrame fetch methods (FETCH-01..05).
+    #
+    # Deliberate strict-vs-lenient gap: these NEW methods reproduce ADBC's
+    # strict consumption contract — they raise ProgrammingError before
+    # execute(), and fetch_arrow() enforces single-consumption + ordering.
+    # The EXISTING fetch_arrow_table/fetchall/fetchone/fetchmany stay
+    # permissive (return empty before execute). Reconciling this inconsistency
+    # is deferred to Phase 4 / PARITY-01 (accepted gap, not a bug).
+    # -----------------------------------------------------------------------
+
+    def _require_executed(self, method_name: str) -> None:
+        """Raise ADBC's ProgrammingError if called before execute() (D4)."""
+        if not self._executed:
+            raise ProgrammingError(
+                f"Cannot {method_name}() before execute()",
+                status_code=AdbcStatusCode.INVALID_STATE,
+            )
+
+    def fetch_record_batch(self) -> pa.RecordBatchReader:
+        """Fetch the recorded result as a pyarrow.RecordBatchReader (FETCH-01)."""
+        self._require_executed("fetch_record_batch")
+        self._result_consumed = True
+        return self._pending.to_reader()
+
+    def fetch_arrow(self) -> object:
+        """
+        Fetch the recorded result as a raw __arrow_c_stream__ PyCapsule (FETCH-02 / D5).
+
+        Reproduces ADBC's single-consumption contract: can only be called once,
+        and must be called before any other method that consumes data (D4).
+        """
+        self._require_executed("fetch_arrow")
+        if self._arrow_consumed:
+            raise ProgrammingError(
+                "fetch_arrow() can only be called once",
+                status_code=AdbcStatusCode.INVALID_STATE,
+            )
+        if self._result_consumed:
+            raise ProgrammingError(
+                "fetch_arrow() must be called before any other method that consumes data",
+                status_code=AdbcStatusCode.INVALID_STATE,
+            )
+        self._arrow_consumed = True
+        self._result_consumed = True
+        return self._pending.__arrow_c_stream__()
+
+    def fetchallarrow(self) -> pa.Table:
+        """Silent alias of fetch_arrow_table() (FETCH-03 / D3) — no warning, lenient."""
+        return self.fetch_arrow_table()
 
     def fetchall(self) -> list[tuple[object, ...]]:
         """Fetch all rows of the result as a list of tuples (DBAPI2)."""
