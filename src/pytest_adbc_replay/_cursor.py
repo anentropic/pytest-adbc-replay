@@ -143,6 +143,9 @@ class ReplayCursor:
         self._last_executed_key: tuple[str, str] | None = None
         # Offset for DBAPI2 fetch methods
         self._fetch_offset: int = 0
+        # DBAPI2 fetchmany() default batch size — read/write to match real
+        # ADBC's writable Cursor.arraysize property.
+        self._arraysize: int = 1
         # Per-result consumption state for the NEW strict fetch methods only
         # (fetch_record_batch/fetch_arrow/fetch_df/fetch_polars). Existing
         # permissive methods do not read these. Reset at the end of execute().
@@ -668,7 +671,12 @@ class ReplayCursor:
     @property
     def arraysize(self) -> int:
         """Number of rows to fetch at a time with fetchmany() (DBAPI2)."""
-        return 1
+        return self._arraysize
+
+    @arraysize.setter
+    def arraysize(self, value: int) -> None:
+        """Set the default fetchmany() batch size (read/write, matches real ADBC)."""
+        self._arraysize = value
 
     @property
     def rownumber(self) -> int | None:
