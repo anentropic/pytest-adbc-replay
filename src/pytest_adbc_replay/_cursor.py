@@ -6,7 +6,7 @@ import json
 import shutil
 from collections import defaultdict, deque
 from pathlib import Path  # noqa: TC003
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import pyarrow as pa
 from adbc_driver_manager import AdbcStatusCode
@@ -208,13 +208,15 @@ class ReplayCursor:
         write_params_json(params_raw, params_path)
         self._record_index += 1
 
-    def _load_from_queue(self, key: tuple[str, str], raw_sql: str, canonical_sql: str) -> pa.Table:
-        """Pop the next result from the replay queue for this key, or raise CassetteMissError."""
-        queue = self._replay_queue.get(key)
-        if queue:
-            result = queue.popleft()
-            return result
-        # Nothing in queue — determine appropriate error
+    def _raise_cassette_miss(self, raw_sql: str, canonical_sql: str) -> NoReturn:
+        """
+        Raise the appropriate CassetteMissError for a missing interaction.
+
+        Three-way selection (shared by _load_from_queue and adbc_execute_schema):
+        directory-missing / empty-directory / interaction-missing. Carries only
+        raw/normalised SQL and the cassette path — never recorded row data or
+        param values (T-03-01).
+        """
         if not self._cassette_path.exists():
             raise CassetteMissError.directory_missing(
                 raw_sql=raw_sql,
@@ -233,6 +235,15 @@ class ReplayCursor:
             normalised_sql=canonical_sql,
             cassette_path=self._cassette_path,
         )
+
+    def _load_from_queue(self, key: tuple[str, str], raw_sql: str, canonical_sql: str) -> pa.Table:
+        """Pop the next result from the replay queue for this key, or raise CassetteMissError."""
+        queue = self._replay_queue.get(key)
+        if queue:
+            result = queue.popleft()
+            return result
+        # Nothing in queue — determine appropriate error
+        self._raise_cassette_miss(raw_sql, canonical_sql)
 
     def execute(self, operation: str, parameters: Any = None, **kwargs: Any) -> None:
         """
@@ -322,6 +333,142 @@ class ReplayCursor:
         if self._real_cursor is None:
             raise RuntimeError("ReplayCursor has no real cursor — cannot record executescript().")
         self._real_cursor.executescript(operation)
+
+    # -----------------------------------------------------------------------
+    # ADBC extension methods (ADBCX-01..04).
+    #
+    # Guiding principle: record mode delegates to the real cursor; replay mode
+    # derives from the cassette where possible, no-ops where safe, or raises an
+    # actionable NotSupportedError. All members mirror the executescript()
+    # dispatch precedent (replay branch when _mode == "none", else delegate
+    # with a RuntimeError guard when _real_cursor is None).
+    # -----------------------------------------------------------------------
+
+    def adbc_execute_schema(self, operation: str, parameters: Any = None) -> pa.Schema:
+        """
+        Return the result schema for a query without executing it (ADBCX-02).
+
+        Replay: derive the schema from the matching recorded result table by
+        PEEKING the front of the replay queue — it does NOT consume the queue or
+        disturb _pending / _fetch_offset, so a subsequent execute() of the same
+        query still returns its rows (D-02 LOCKED). Raises CassetteMissError when
+        the query was never recorded. Record: delegate to the real cursor.
+        """
+        if self._mode == "none":
+            self._ensure_initialised()
+            canonical = normalise_sql(operation, self._dialect)
+            key = self._make_key(canonical, parameters)
+            queue = self._replay_queue.get(key)
+            if queue:
+                # Peek the front entry's schema — do NOT popleft (peek-don't-pop).
+                return queue[0].schema
+            # No matching interaction — raise the same error _load_from_queue would.
+            self._raise_cassette_miss(operation, canonical)
+        if self._real_cursor is None:
+            raise RuntimeError(
+                "ReplayCursor has no real cursor — cannot record adbc_execute_schema()."
+            )
+        return self._real_cursor.adbc_execute_schema(operation, parameters)
+
+    def adbc_cancel(self) -> None:
+        """
+        Cancel the in-progress operation (ADBCX-03).
+
+        Replay: safe no-op returning None (nothing is running). Record: delegate
+        to the real cursor's adbc_cancel.
+        """
+        if self._mode == "none":
+            return  # replay: nothing is running
+        if self._real_cursor is None:
+            raise RuntimeError("ReplayCursor has no real cursor — cannot record adbc_cancel().")
+        self._real_cursor.adbc_cancel()
+
+    def adbc_prepare(self, operation: str) -> pa.Schema | None:
+        """
+        Prepare a query, returning its bind-parameter schema (ADBCX-03).
+
+        Replay: pure no-op returning None — preparation is implicit and None is
+        always a valid return (D-04 LOCKED; no schema derivation). Record:
+        delegate to the real cursor's adbc_prepare and return its result.
+        """
+        if self._mode == "none":
+            return None  # replay: preparation is implicit; None is always valid
+        if self._real_cursor is None:
+            raise RuntimeError("ReplayCursor has no real cursor — cannot record adbc_prepare().")
+        return self._real_cursor.adbc_prepare(operation)
+
+    def adbc_ingest(
+        self,
+        table_name: str,
+        data: Any,
+        mode: str = "create",
+        *,
+        catalog_name: str | None = None,
+        db_schema_name: str | None = None,
+        temporary: bool = False,
+    ) -> int:
+        """
+        Ingest a table of Arrow data into the database (ADBCX-04).
+
+        Replay: raises NotSupportedError — ingest writes data to a live database,
+        which a cassette cannot reconstruct. Record: delegate to the real cursor
+        and return the real row count.
+        """
+        if self._mode == "none":
+            raise NotSupportedError(
+                "adbc_ingest() is not supported in replay — it writes data to a live "
+                "database, which a cassette cannot reconstruct."
+            )
+        if self._real_cursor is None:
+            raise RuntimeError("ReplayCursor has no real cursor — cannot record adbc_ingest().")
+        return self._real_cursor.adbc_ingest(
+            table_name,
+            data,
+            mode,
+            catalog_name=catalog_name,
+            db_schema_name=db_schema_name,
+            temporary=temporary,
+        )
+
+    def adbc_execute_partitions(
+        self, operation: str, parameters: Any = None
+    ) -> tuple[list[bytes], pa.Schema]:
+        """
+        Execute a query returning distributed result partitions (ADBCX-04).
+
+        Replay: raises NotSupportedError — partitions stream live distributed
+        results that a cassette cannot reconstruct. Record: delegate to the real
+        cursor.
+        """
+        if self._mode == "none":
+            raise NotSupportedError(
+                "adbc_execute_partitions() is not supported in replay — partitions stream "
+                "live distributed results that a cassette cannot reconstruct."
+            )
+        if self._real_cursor is None:
+            raise RuntimeError(
+                "ReplayCursor has no real cursor — cannot record adbc_execute_partitions()."
+            )
+        return self._real_cursor.adbc_execute_partitions(operation, parameters)
+
+    def adbc_read_partition(self, partition: bytes) -> None:
+        """
+        Read a single distributed result partition (ADBCX-04).
+
+        Replay: raises NotSupportedError — there is no live partition stream to
+        read; a cassette cannot reconstruct it. Record: delegate to the real
+        cursor.
+        """
+        if self._mode == "none":
+            raise NotSupportedError(
+                "adbc_read_partition() is not supported in replay — there is no live "
+                "partition stream to read; a cassette cannot reconstruct it."
+            )
+        if self._real_cursor is None:
+            raise RuntimeError(
+                "ReplayCursor has no real cursor — cannot record adbc_read_partition()."
+            )
+        self._real_cursor.adbc_read_partition(partition)
 
     def nextset(self) -> None:
         """Move to the next result set — not supported (DBAPI2, DBAPI-02)."""
@@ -513,6 +660,24 @@ class ReplayCursor:
     def connection(self) -> ReplayConnection | None:
         """The ReplayConnection that created this cursor (DBAPI2 extension)."""
         return self._connection
+
+    @property
+    def adbc_statement(self) -> Any:  # real type: adbc_driver_manager.AdbcStatement
+        """
+        The underlying ADBC statement (ADBCX-04).
+
+        Replay: raises NotSupportedError — there is no live statement to expose.
+        This intentional raise is NOT a bare AttributeError, so it satisfies the
+        Phase 4 PARITY-01 introspection test (D-06). Record: return the real
+        cursor's adbc_statement.
+        """
+        if self._mode == "none":
+            raise NotSupportedError(
+                "adbc_statement is not available in replay — there is no live statement to expose."
+            )
+        if self._real_cursor is None:
+            raise RuntimeError("ReplayCursor has no real cursor — cannot access adbc_statement.")
+        return self._real_cursor.adbc_statement
 
     def close(self) -> None:
         """Close the cursor and free resources."""
