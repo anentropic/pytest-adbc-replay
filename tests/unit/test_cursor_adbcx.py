@@ -87,6 +87,26 @@ class TestAdbcExecuteSchema:
         assert cursor.fetchone() == (10,)
         assert cursor.fetchone() == (20,)
 
+    def test_replay_schema_after_execute_single_recording(self, tmp_path: Path) -> None:
+        # Typical cassette shape: ONE recorded interaction per query. execute()
+        # drains that single entry off the queue; adbc_execute_schema() must still
+        # return the schema (from _pending) rather than a false CassetteMissError,
+        # matching real ADBC where adbc_execute_schema is independent of execute().
+        table = pa.table({"id": [1, 2], "name": ["a", "b"]})
+        cursor = _replay_cursor(tmp_path, table)  # count=1 recording
+        cursor.execute("SELECT 1")
+        assert cursor.fetchall() == [(1, "a"), (2, "b")]
+        assert cursor.adbc_execute_schema("SELECT 1") == table.schema
+
+    def test_replay_schema_for_different_query_after_execute_misses(self, tmp_path: Path) -> None:
+        # The _pending fallback must be scoped to the just-executed query: a schema
+        # request for a DIFFERENT, never-recorded query still raises CassetteMiss.
+        table = pa.table({"id": [1]})
+        cursor = _replay_cursor(tmp_path, table, sql="SELECT 1")
+        cursor.execute("SELECT 1")
+        with pytest.raises(CassetteMissError):
+            cursor.adbc_execute_schema("SELECT 999")
+
     def test_replay_directory_missing_raises_cassette_miss(self, tmp_path: Path) -> None:
         cursor = ReplayCursor(
             real_cursor=None, mode="none", cassette_path=tmp_path / "does_not_exist"

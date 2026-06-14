@@ -137,6 +137,10 @@ class ReplayCursor:
         self._scrubber = scrubber
         # Pending result from execute(); replaced per call
         self._pending: pa.Table = pa.table({})
+        # Cassette key of the most recent successful execute(); lets
+        # adbc_execute_schema() recover the schema of a just-executed query whose
+        # single recorded interaction was already consumed off the replay queue.
+        self._last_executed_key: tuple[str, str] | None = None
         # Offset for DBAPI2 fetch methods
         self._fetch_offset: int = 0
         # Per-result consumption state for the NEW strict fetch methods only
@@ -310,6 +314,7 @@ class ReplayCursor:
         # new_episodes/all). All branches fall through here with no early
         # return, so a single trailing block resets consistently.
         self._executed = True
+        self._last_executed_key = key
         self._arrow_consumed = False
         self._result_consumed = False
 
@@ -348,11 +353,16 @@ class ReplayCursor:
         """
         Return the result schema for a query without executing it (ADBCX-02).
 
-        Replay: derive the schema from the matching recorded result table by
-        PEEKING the front of the replay queue — it does NOT consume the queue or
-        disturb _pending / _fetch_offset, so a subsequent execute() of the same
-        query still returns its rows (D-02 LOCKED). Raises CassetteMissError when
-        the query was never recorded. Record: delegate to the real cursor.
+        Replay: derive the schema from the matching recorded result table. PEEK
+        the front of the replay queue first — this does NOT consume the queue or
+        disturb _pending / _fetch_offset, so a schema-before-execute() call leaves
+        the recorded rows intact for a later execute() (D-02 LOCKED). If the queue
+        is empty because execute() already drained this query's single recorded
+        interaction, fall back to the just-executed _pending result's schema, so
+        the common execute()-then-adbc_execute_schema() ordering works the way it
+        does in real ADBC (where adbc_execute_schema is independent of execute()).
+        Raises CassetteMissError only when the query was never recorded. Record:
+        delegate to the real cursor.
         """
         if self._mode == "none":
             self._ensure_initialised()
@@ -362,6 +372,10 @@ class ReplayCursor:
             if queue:
                 # Peek the front entry's schema — do NOT popleft (peek-don't-pop).
                 return queue[0].schema
+            if self._executed and key == self._last_executed_key:
+                # This query was just executed; its single recording was already
+                # popped off the queue but its schema is still in _pending.
+                return self._pending.schema
             # No matching interaction — raise the same error _load_from_queue would.
             self._raise_cassette_miss(operation, canonical)
         if self._real_cursor is None:
