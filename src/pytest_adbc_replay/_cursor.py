@@ -504,17 +504,26 @@ class ReplayCursor:
 
     def fetch_arrow_table(self) -> pa.Table:
         """Fetch all rows of the result as a PyArrow Table."""
+        self._require_executed("fetch_arrow_table")
         return self._pending
 
     # -----------------------------------------------------------------------
-    # Arrow & DataFrame fetch methods (FETCH-01..05).
+    # Arrow & DataFrame fetch methods (FETCH-01..05) + legacy DBAPI fetches.
     #
-    # Deliberate strict-vs-lenient gap: these NEW methods reproduce ADBC's
-    # strict consumption contract — they raise ProgrammingError before
-    # execute(), and fetch_arrow() enforces single-consumption + ordering.
-    # The EXISTING fetch_arrow_table/fetchall/fetchone/fetchmany stay
-    # permissive (return empty before execute). Reconciling this inconsistency
-    # is deferred to Phase 4 / PARITY-01 (accepted gap, not a bug).
+    # Strict-vs-lenient reconciliation (Phase 4 / PARITY-01, D-02):
+    #
+    # Dimension 1 (pre-execute) — FIXED. ALL fetch methods now share one
+    # uniform pre-execute contract via _require_executed(): calling any of
+    # fetch_arrow_table/fetchall/fetchone/fetchmany (and fetchallarrow, which
+    # inherits the guard through its fetch_arrow_table() delegation), plus the
+    # strict fetch_record_batch/fetch_arrow/fetch_df/fetch_polars methods,
+    # before execute() raises ProgrammingError, matching real ADBC.
+    #
+    # Dimension 2 (re-consumption) — intentionally left LENIENT. The
+    # materialized _pending table makes the legacy fetches re-readable, unlike
+    # real ADBC's consume-once stream. Faithful single-stream simulation is
+    # awkward under this model, so it is documented as a known deviation in
+    # DOC-01 (docs/src/reference/cursor-surface.md) rather than enforced here.
     # -----------------------------------------------------------------------
 
     def _require_executed(self, method_name: str) -> None:
@@ -597,6 +606,7 @@ class ReplayCursor:
 
     def fetchall(self) -> list[tuple[object, ...]]:
         """Fetch all rows of the result as a list of tuples (DBAPI2)."""
+        self._require_executed("fetchall")
         if self._pending.num_rows == 0:
             return []
         rows = self._pending.to_pydict()
@@ -605,6 +615,7 @@ class ReplayCursor:
 
     def fetchone(self) -> tuple[object, ...] | None:
         """Fetch the next row from the result (DBAPI2)."""
+        self._require_executed("fetchone")
         if self._fetch_offset >= self._pending.num_rows:
             return None
         row_table = self._pending.slice(self._fetch_offset, 1)
@@ -615,6 +626,7 @@ class ReplayCursor:
 
     def fetchmany(self, size: int | None = None) -> list[tuple[object, ...]]:
         """Fetch up to `size` rows from the result (DBAPI2)."""
+        self._require_executed("fetchmany")
         if size is None:
             size = self.arraysize
         remaining = self._pending.num_rows - self._fetch_offset
