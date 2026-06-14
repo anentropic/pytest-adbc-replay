@@ -182,12 +182,16 @@ class TestFetchallArrow:
         cursor.fetchallarrow()
         assert len(recwarn.list) == 0
 
-    def test_before_execute_does_not_raise(self, tmp_path: Path) -> None:
-        # Inherits the lenient fetch_arrow_table behavior (D3) — no ProgrammingError.
+    def test_before_execute_raises(self, tmp_path: Path) -> None:
+        # D-02: fetchallarrow inherits the pre-execute guard via its
+        # fetch_arrow_table() delegation (previously lenient — intended breaking change).
         table = pa.table({"id": [1]})
         cursor = _unexecuted_cursor(tmp_path, table)
-        result = cursor.fetchallarrow()
-        assert isinstance(result, pa.Table)
+        with pytest.raises(ProgrammingError) as exc_info:
+            cursor.fetchallarrow()
+        msg = str(exc_info.value)
+        assert "fetch_arrow_table" in msg
+        assert "before execute" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -287,3 +291,47 @@ class TestFetchPolars:
         with pytest.raises(ImportError) as exc_info:
             cursor.fetch_polars()
         assert "polars" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# D-02: legacy fetch methods share the uniform pre-execute contract
+# (fetch_arrow_table / fetchall / fetchone / fetchmany raise before execute()).
+# ---------------------------------------------------------------------------
+
+
+class TestLegacyFetchBeforeExecuteRaises:
+    def test_fetch_arrow_table_before_execute_raises(self, tmp_path: Path) -> None:
+        table = pa.table({"id": [1]})
+        cursor = _unexecuted_cursor(tmp_path, table)
+        with pytest.raises(ProgrammingError) as exc_info:
+            cursor.fetch_arrow_table()
+        msg = str(exc_info.value)
+        assert "fetch_arrow_table" in msg
+        assert "before execute" in msg
+
+    def test_fetchall_before_execute_raises(self, tmp_path: Path) -> None:
+        table = pa.table({"id": [1]})
+        cursor = _unexecuted_cursor(tmp_path, table)
+        with pytest.raises(ProgrammingError) as exc_info:
+            cursor.fetchall()
+        msg = str(exc_info.value)
+        assert "fetchall" in msg
+        assert "before execute" in msg
+
+    def test_fetchone_before_execute_raises(self, tmp_path: Path) -> None:
+        table = pa.table({"id": [1]})
+        cursor = _unexecuted_cursor(tmp_path, table)
+        with pytest.raises(ProgrammingError) as exc_info:
+            cursor.fetchone()
+        msg = str(exc_info.value)
+        assert "fetchone" in msg
+        assert "before execute" in msg
+
+    def test_fetchmany_before_execute_raises(self, tmp_path: Path) -> None:
+        table = pa.table({"id": [1]})
+        cursor = _unexecuted_cursor(tmp_path, table)
+        with pytest.raises(ProgrammingError) as exc_info:
+            cursor.fetchmany(1)
+        msg = str(exc_info.value)
+        assert "fetchmany" in msg
+        assert "before execute" in msg
