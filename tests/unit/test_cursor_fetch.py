@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING
 
 import pyarrow as pa
@@ -200,3 +201,89 @@ class TestExecuteResetsConsumptionState:
         cursor = _unexecuted_cursor(tmp_path, table)
         with pytest.raises(ProgrammingError):
             cursor.fetch_record_batch()
+
+
+# ---------------------------------------------------------------------------
+# FETCH-04: fetch_df
+# ---------------------------------------------------------------------------
+
+
+class TestFetchDf:
+    def test_returns_pandas_dataframe(self, tmp_path: Path) -> None:
+        pd = pytest.importorskip("pandas")
+        table = pa.table({"id": [1, 2, 3], "name": ["a", "b", "c"]})
+        cursor = _executed_cursor(tmp_path, table)
+        df = cursor.fetch_df()
+        assert isinstance(df, pd.DataFrame)
+        assert df["id"].tolist() == [1, 2, 3]
+        assert df["name"].tolist() == ["a", "b", "c"]
+
+    def test_empty_result_empty_dataframe(self, tmp_path: Path) -> None:
+        pytest.importorskip("pandas")
+        table = pa.table({"id": pa.array([], type=pa.int64())})
+        cursor = _executed_cursor(tmp_path, table)
+        df = cursor.fetch_df()
+        assert len(df) == 0
+
+    def test_before_execute_raises(self, tmp_path: Path) -> None:
+        table = pa.table({"id": [1]})
+        cursor = _unexecuted_cursor(tmp_path, table)
+        with pytest.raises(ProgrammingError) as exc_info:
+            cursor.fetch_df()
+        msg = str(exc_info.value)
+        assert "fetch_df" in msg
+        assert "before execute" in msg
+
+    def test_missing_library_actionable_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        table = pa.table({"id": [1]})
+        cursor = _executed_cursor(tmp_path, table)
+        # Setting the module to None in sys.modules makes `import pandas` raise
+        # ImportError — the canonical way to simulate absence without uninstalling.
+        monkeypatch.setitem(sys.modules, "pandas", None)
+        with pytest.raises(ImportError) as exc_info:
+            cursor.fetch_df()
+        assert "pandas" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# FETCH-05: fetch_polars
+# ---------------------------------------------------------------------------
+
+
+class TestFetchPolars:
+    def test_returns_polars_dataframe(self, tmp_path: Path) -> None:
+        pl = pytest.importorskip("polars")
+        table = pa.table({"id": [1, 2, 3], "name": ["a", "b", "c"]})
+        cursor = _executed_cursor(tmp_path, table)
+        df = cursor.fetch_polars()
+        assert isinstance(df, pl.DataFrame)
+        assert df["id"].to_list() == [1, 2, 3]
+        assert df["name"].to_list() == ["a", "b", "c"]
+
+    def test_empty_result_empty_dataframe(self, tmp_path: Path) -> None:
+        pytest.importorskip("polars")
+        table = pa.table({"id": pa.array([], type=pa.int64())})
+        cursor = _executed_cursor(tmp_path, table)
+        df = cursor.fetch_polars()
+        assert len(df) == 0
+
+    def test_before_execute_raises(self, tmp_path: Path) -> None:
+        table = pa.table({"id": [1]})
+        cursor = _unexecuted_cursor(tmp_path, table)
+        with pytest.raises(ProgrammingError) as exc_info:
+            cursor.fetch_polars()
+        msg = str(exc_info.value)
+        assert "fetch_polars" in msg
+        assert "before execute" in msg
+
+    def test_missing_library_actionable_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        table = pa.table({"id": [1]})
+        cursor = _executed_cursor(tmp_path, table)
+        monkeypatch.setitem(sys.modules, "polars", None)
+        with pytest.raises(ImportError) as exc_info:
+            cursor.fetch_polars()
+        assert "polars" in str(exc_info.value)
