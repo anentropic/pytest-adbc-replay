@@ -27,6 +27,8 @@ from pytest_adbc_replay._params import build_registry, params_to_cache_key, seri
 if TYPE_CHECKING:
     from types import TracebackType
 
+    from pytest_adbc_replay._connection import ReplayConnection
+
 
 # ---------------------------------------------------------------------------
 # Scrubbing helpers
@@ -121,8 +123,10 @@ class ReplayCursor:
         driver_name: str | None = None,
         scrubber: object = None,
         wipe_state: dict[str, bool] | None = None,
+        connection: ReplayConnection | None = None,
     ) -> None:
         self._real_cursor = real_cursor
+        self._connection = connection
         self._mode = mode
         self._cassette_path = cassette_path
         self._dialect = dialect
@@ -429,6 +433,19 @@ class ReplayCursor:
         columns = list(batch_dict.keys())
         return [tuple(batch_dict[col][i] for col in columns) for i in range(batch_size)]
 
+    def next(self) -> tuple[object, ...]:
+        """Fetch the next row, or raise StopIteration (DBAPI2 extension)."""
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration
+        return row
+
+    def __next__(self) -> tuple[object, ...]:
+        return self.next()
+
+    def __iter__(self) -> ReplayCursor:
+        return self
+
     @property
     def description(self) -> list[tuple[object, ...]] | None:
         """DBAPI2 description: sequence of 7-item sequences describing result columns."""
@@ -446,6 +463,23 @@ class ReplayCursor:
     def arraysize(self) -> int:
         """Number of rows to fetch at a time with fetchmany() (DBAPI2)."""
         return 1
+
+    @property
+    def rownumber(self) -> int | None:
+        """
+        Index of the next row to fetch, or None before execute() (DBAPI2).
+
+        ADBC-accurate semantics: None only before execute(); 0 immediately after
+        execute() (before any fetch); N after N rows consumed. This INTENTIONALLY
+        diverges from the literal REQUIREMENTS/ROADMAP wording "None before the
+        first fetch" — real ADBC returns 0 (not None) post-execute pre-fetch.
+        """
+        return None if not self._executed else self._fetch_offset
+
+    @property
+    def connection(self) -> ReplayConnection | None:
+        """The ReplayConnection that created this cursor (DBAPI2 extension)."""
+        return self._connection
 
     def close(self) -> None:
         """Close the cursor and free resources."""
