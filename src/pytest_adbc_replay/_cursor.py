@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import pyarrow as pa
 from adbc_driver_manager import AdbcStatusCode
-from adbc_driver_manager.dbapi import ProgrammingError
+from adbc_driver_manager.dbapi import NotSupportedError, ProgrammingError
 
 from pytest_adbc_replay._cassette_io import (
     cassette_has_interactions,
@@ -307,6 +307,39 @@ class ReplayCursor:
         if self._real_cursor is not None:
             self._real_cursor.executemany(operation, seq_of_parameters)
         # In replay mode: no-op (not typically used for replay)
+
+    def executescript(self, operation: str) -> None:
+        """
+        Execute a multi-statement script (DBAPI2 extension).
+
+        Record mode: delegate to the real cursor (DDL side effects are baked into
+        subsequently recorded SELECT results). Replay mode: silent no-op — the
+        script's effects are already captured in the cassette and there is no live
+        connection to run against. Writes nothing to the cassette (DBAPI-07).
+        """
+        if self._mode == "none":
+            return  # replay: silent no-op
+        if self._real_cursor is None:
+            raise RuntimeError("ReplayCursor has no real cursor — cannot record executescript().")
+        self._real_cursor.executescript(operation)
+
+    def nextset(self) -> None:
+        """Move to the next result set — not supported (DBAPI2, DBAPI-02)."""
+        raise NotSupportedError("Cursor.nextset")
+
+    def callproc(self, procname: str, parameters: Any) -> None:
+        """Call a stored procedure — not supported (DBAPI2, DBAPI-06)."""
+        raise NotSupportedError("Cursor.callproc")
+
+    def setinputsizes(self, sizes: Any) -> None:
+        """Preallocate parameter memory — no-op in replay, delegates in record (DBAPI-05)."""
+        if self._real_cursor is not None:
+            self._real_cursor.setinputsizes(sizes)
+
+    def setoutputsize(self, size: Any, column: Any = None) -> None:
+        """Preallocate result memory — no-op in replay, delegates in record (DBAPI-05)."""
+        if self._real_cursor is not None:
+            self._real_cursor.setoutputsize(size, column)
 
     def fetch_arrow_table(self) -> pa.Table:
         """Fetch all rows of the result as a PyArrow Table."""
