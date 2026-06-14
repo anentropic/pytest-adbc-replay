@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pyarrow as pa
 import pytest
+from adbc_driver_manager.dbapi import NotSupportedError
 
 from pytest_adbc_replay._cassette_io import (
     interaction_file_paths,
@@ -148,3 +150,104 @@ class TestConnection:
         cursor = clone.cursor()
         assert cursor.connection is clone
         assert cursor.connection is not conn
+
+
+# ---------------------------------------------------------------------------
+# Record-mode helper: a cursor wrapping a MagicMock real cursor.
+# ---------------------------------------------------------------------------
+
+
+def _record_cursor_with_mock(tmp_path: Path, mode: str = "once") -> tuple[ReplayCursor, MagicMock]:
+    """Build a record-mode ReplayCursor backed by a MagicMock real cursor."""
+    mock = MagicMock()
+    cursor = ReplayCursor(real_cursor=mock, mode=mode, cassette_path=tmp_path / "rec")
+    return cursor, mock
+
+
+# ---------------------------------------------------------------------------
+# DBAPI-02: nextset() -> NotSupportedError (both modes, no delegation)
+# ---------------------------------------------------------------------------
+
+
+class TestNextset:
+    def test_replay_raises_not_supported(self, tmp_path: Path) -> None:
+        cursor = ReplayCursor(real_cursor=None, mode="none", cassette_path=tmp_path / "c")
+        with pytest.raises(NotSupportedError, match="Cursor.nextset"):
+            cursor.nextset()
+
+    def test_record_raises_without_delegation(self, tmp_path: Path) -> None:
+        cursor, mock = _record_cursor_with_mock(tmp_path)
+        with pytest.raises(NotSupportedError, match="Cursor.nextset"):
+            cursor.nextset()
+        mock.nextset.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# DBAPI-06: callproc() -> NotSupportedError (both modes, no delegation)
+# ---------------------------------------------------------------------------
+
+
+class TestCallproc:
+    def test_replay_raises_not_supported(self, tmp_path: Path) -> None:
+        cursor = ReplayCursor(real_cursor=None, mode="none", cassette_path=tmp_path / "c")
+        with pytest.raises(NotSupportedError, match="Cursor.callproc"):
+            cursor.callproc("some_proc", [])
+
+    def test_record_raises_without_delegation(self, tmp_path: Path) -> None:
+        cursor, mock = _record_cursor_with_mock(tmp_path)
+        with pytest.raises(NotSupportedError, match="Cursor.callproc"):
+            cursor.callproc("some_proc", [1, 2])
+        mock.callproc.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# DBAPI-05: setinputsizes / setoutputsize (replay no-op; record delegates)
+# ---------------------------------------------------------------------------
+
+
+class TestSizeHints:
+    def test_setinputsizes_replay_noop_returns_none(self, tmp_path: Path) -> None:
+        cursor = ReplayCursor(real_cursor=None, mode="none", cassette_path=tmp_path / "c")
+        assert cursor.setinputsizes([10, 20]) is None
+
+    def test_setoutputsize_replay_noop_returns_none(self, tmp_path: Path) -> None:
+        cursor = ReplayCursor(real_cursor=None, mode="none", cassette_path=tmp_path / "c")
+        assert cursor.setoutputsize(100) is None
+        assert cursor.setoutputsize(100, 2) is None
+
+    def test_setinputsizes_record_delegates(self, tmp_path: Path) -> None:
+        cursor, mock = _record_cursor_with_mock(tmp_path)
+        cursor.setinputsizes([1, 2, 3])
+        mock.setinputsizes.assert_called_once_with([1, 2, 3])
+
+    def test_setoutputsize_record_delegates(self, tmp_path: Path) -> None:
+        cursor, mock = _record_cursor_with_mock(tmp_path)
+        cursor.setoutputsize(50, 1)
+        mock.setoutputsize.assert_called_once_with(50, 1)
+
+
+# ---------------------------------------------------------------------------
+# DBAPI-07: executescript (replay silent no-op; record delegates)
+# ---------------------------------------------------------------------------
+
+
+class TestExecutescript:
+    def test_replay_noop_returns_none_and_writes_nothing(self, tmp_path: Path) -> None:
+        cassette = tmp_path / "cass"
+        cassette.mkdir(parents=True, exist_ok=True)
+        before = set(cassette.iterdir())
+        cursor = ReplayCursor(real_cursor=None, mode="none", cassette_path=cassette)
+        assert cursor.executescript("CREATE TABLE t (id INT); INSERT INTO t VALUES (1);") is None
+        after = set(cassette.iterdir())
+        assert before == after  # nothing written to the cassette dir
+
+    def test_record_delegates_to_real_cursor(self, tmp_path: Path) -> None:
+        cursor, mock = _record_cursor_with_mock(tmp_path)
+        script = "CREATE TABLE t (id INT);"
+        cursor.executescript(script)
+        mock.executescript.assert_called_once_with(script)
+
+    def test_record_mode_without_real_cursor_raises_runtime_error(self, tmp_path: Path) -> None:
+        cursor = ReplayCursor(real_cursor=None, mode="once", cassette_path=tmp_path / "c")
+        with pytest.raises(RuntimeError):
+            cursor.executescript("CREATE TABLE t (id INT);")
