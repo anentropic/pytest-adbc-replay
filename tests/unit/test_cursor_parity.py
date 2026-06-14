@@ -188,6 +188,23 @@ class TestSurfaceParity:
         for name in EXPECTED_SURFACE:
             assert hasattr(type(cursor), name), f"{name} is missing from ReplayCursor"
 
+    def test_writable_properties_accept_assignment(self, tmp_path: Path) -> None:
+        """
+        ADBC-writable properties accept assignment without a bare AttributeError.
+
+        Regression for WR-02: real ADBC ``Cursor.arraysize`` is read/write, so a
+        getter-only ``arraysize`` would crash on ``cursor.arraysize = N`` in
+        replay while succeeding on the live driver. The name-presence sweep only
+        checks read access, so this asserts write semantics for read/write
+        properties explicitly.
+        """
+        cursor = ReplayCursor(real_cursor=None, mode="none", cassette_path=tmp_path / "c")
+        cursor.arraysize = 100
+        assert cursor.arraysize == 100
+        # And the new value is honored by fetchmany() default-size logic.
+        cursor.arraysize = 7
+        assert cursor.arraysize == 7
+
     def test_no_bare_attribute_error_sweep(self, tmp_path: Path) -> None:
         """Probe every expected member on a valid replay cursor; only AttributeError fails."""
         table = pa.table({"id": [1, 2, 3]})
