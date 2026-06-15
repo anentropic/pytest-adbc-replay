@@ -718,6 +718,14 @@ class ReplayCursor:
         if self._real_cursor is not None:
             self._real_cursor.close()
         self._pending = pa.table({})
+        # Reset execution/consumption state so a closed cursor no longer reports as
+        # "executed": fetch methods must raise ProgrammingError via _require_executed()
+        # after close(), consistent with the pre-execute() contract.
+        self._executed = False
+        self._fetch_offset = 0
+        self._last_executed_key = None
+        self._arrow_consumed = False
+        self._result_consumed = False
 
     def __enter__(self) -> ReplayCursor:
         return self

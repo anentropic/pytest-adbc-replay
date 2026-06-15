@@ -67,9 +67,12 @@ Each member carries one of five labels:
 | `adbc_statement` | not supported (raises) | Property; raises `NotSupportedError`. The underlying ADBC statement is not available in replay. |
 
 !!! note "Record-mode schema reflects live DB"
-    In record modes (`once` recording, `new_episodes`, `all`), `adbc_execute_schema`
-    delegates to the live database, whereas `execute()` replays from the cassette. A
-    recorded schema therefore reflects the live database state at record time, not the
+    In any record mode (`once`, `new_episodes`, `all`), `adbc_execute_schema` always
+    delegates to the live database — it never reads the cassette. `execute()` behaves
+    differently: in `once`/`new_episodes` it replays a matching recorded interaction
+    when one exists (recording only on a miss), and in `all` it always records against
+    the live database. So a schema obtained from `adbc_execute_schema` reflects the live
+    database at record time even when the corresponding `execute()` was served from the
     cassette. (Phase 3 design / WR-02.)
 
 !!! warning "Re-consumable results (deviation from ADBC)"
