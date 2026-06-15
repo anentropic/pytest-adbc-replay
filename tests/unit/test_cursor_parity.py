@@ -31,8 +31,10 @@ if TYPE_CHECKING:
 
 
 # ---------------------------------------------------------------------------
-# Module-local cassette / cursor helpers (project convention: conftest is empty,
-# each test module defines its own — see test_cursor_fetch.py / test_cursor_dbapi.py).
+# Module-local cassette / cursor helpers (project convention: tests/unit/conftest.py
+# holds no shared fixtures, so each test module defines its own — see
+# test_cursor_fetch.py / test_cursor_dbapi.py). The top-level tests/conftest.py only
+# enables the pytester plugin.
 # ---------------------------------------------------------------------------
 
 

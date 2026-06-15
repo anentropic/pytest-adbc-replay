@@ -136,6 +136,18 @@ class TestFetchArrow:
         with pytest.raises(ProgrammingError):
             cursor.fetch_arrow()
 
+    @pytest.mark.parametrize(
+        "method",
+        ["fetch_arrow_table", "fetchallarrow", "fetchall", "fetchone", "fetchmany"],
+    )
+    def test_after_legacy_consumer_raises(self, tmp_path: Path, method: str) -> None:
+        """fetch_arrow()'s must-be-first guard must hold after legacy fetches too."""
+        table = pa.table({"id": [1]})
+        cursor = _executed_cursor(tmp_path, table)
+        getattr(cursor, method)()  # a legacy consuming fetch marks the result accessed
+        with pytest.raises(ProgrammingError):
+            cursor.fetch_arrow()
+
     def test_capsule_single_use_at_c_level(self, tmp_path: Path) -> None:
         table = pa.table({"id": [1]})
         cursor = _executed_cursor(tmp_path, table)

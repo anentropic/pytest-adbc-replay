@@ -508,6 +508,10 @@ class ReplayCursor:
     def fetch_arrow_table(self) -> pa.Table:
         """Fetch all rows of the result as a PyArrow Table."""
         self._require_executed("fetch_arrow_table")
+        # Mark the result accessed so fetch_arrow()'s "must be called first"
+        # ordering guard holds uniformly (the result stays re-readable — this
+        # flag is set, not checked, by the legacy fetches).
+        self._result_consumed = True
         return self._pending
 
     # -----------------------------------------------------------------------
@@ -527,6 +531,11 @@ class ReplayCursor:
     # real ADBC's consume-once stream. Faithful single-stream simulation is
     # awkward under this model, so it is documented as a known deviation in
     # DOC-01 (docs/src/reference/cursor-surface.md) rather than enforced here.
+    #
+    # Note: every fetch (legacy and strict) sets _result_consumed so that
+    # fetch_arrow()'s "must be called before any other consumer" guard holds
+    # uniformly. The legacy fetches only SET this flag; they do not CHECK it,
+    # so they remain re-readable (Dimension 2 leniency is preserved).
     # -----------------------------------------------------------------------
 
     def _require_executed(self, method_name: str) -> None:
@@ -610,6 +619,7 @@ class ReplayCursor:
     def fetchall(self) -> list[tuple[object, ...]]:
         """Fetch all rows of the result as a list of tuples (DBAPI2)."""
         self._require_executed("fetchall")
+        self._result_consumed = True
         if self._pending.num_rows == 0:
             return []
         rows = self._pending.to_pydict()
@@ -619,6 +629,7 @@ class ReplayCursor:
     def fetchone(self) -> tuple[object, ...] | None:
         """Fetch the next row from the result (DBAPI2)."""
         self._require_executed("fetchone")
+        self._result_consumed = True
         if self._fetch_offset >= self._pending.num_rows:
             return None
         row_table = self._pending.slice(self._fetch_offset, 1)
@@ -630,6 +641,7 @@ class ReplayCursor:
     def fetchmany(self, size: int | None = None) -> list[tuple[object, ...]]:
         """Fetch up to `size` rows from the result (DBAPI2)."""
         self._require_executed("fetchmany")
+        self._result_consumed = True
         if size is None:
             size = self.arraysize
         remaining = self._pending.num_rows - self._fetch_offset
