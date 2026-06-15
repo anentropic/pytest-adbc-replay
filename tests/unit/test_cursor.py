@@ -99,6 +99,18 @@ class TestReplayCursorProtocol:
         with pytest.raises(ProgrammingError):
             cursor.fetchall()
 
+    def test_failed_execute_clears_stale_results(self, tmp_path: Path) -> None:
+        """A failed execute() must not leave a prior successful result fetchable."""
+        cursor = self._make_cursor(tmp_path)
+        cursor.execute("SELECT 1")
+        assert cursor.fetchall()  # prior result is available
+        with pytest.raises(CassetteMissError):
+            cursor.execute("SELECT 2")  # not in cassette → replay miss
+        # The failed execute() must have cleared prior state, so a fetch now
+        # raises rather than returning the stale "SELECT 1" rows.
+        with pytest.raises(ProgrammingError):
+            cursor.fetchall()
+
     def test_context_manager_protocol(self, tmp_path: Path) -> None:
         """Cursor works as context manager (__enter__ and __exit__)."""
         cassette = tmp_path / "test"

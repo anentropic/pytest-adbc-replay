@@ -260,6 +260,17 @@ class ReplayCursor:
         via sqlglot before computing the cassette key. Lazy cassette init
         happens on first execute() call.
         """
+        # Clear any prior result + consumption state up front so a failure in
+        # this execute() (e.g. CassetteMissError on a replay miss, or a real-
+        # driver error while recording) cannot leave stale rows behind for a
+        # later fetch* call. Mirrors real ADBC, whose execute() clears the
+        # previous result before running. On success these are re-set below.
+        self._executed = False
+        self._pending = pa.table({})
+        self._fetch_offset = 0
+        self._last_executed_key = None
+        self._arrow_consumed = False
+        self._result_consumed = False
         self._ensure_initialised()
         canonical = normalise_sql(operation, self._dialect)
         key = self._make_key(canonical, parameters)
@@ -311,11 +322,9 @@ class ReplayCursor:
             self._pending = all_table
             self._fetch_offset = 0
 
-        # Reset per-result consumption state for the NEW strict fetch methods.
-        # Placed at method-body level (un-indented) AFTER the whole mode
-        # if/elif chain so it applies to all four modes (none/once/
-        # new_episodes/all). All branches fall through here with no early
-        # return, so a single trailing block resets consistently.
+        # Success: record executed state. Reached only if the mode branch above
+        # did not raise (no early return on any branch), so a failed execute()
+        # leaves the up-front cleared state intact rather than this success state.
         self._executed = True
         self._last_executed_key = key
         self._arrow_consumed = False
