@@ -48,7 +48,7 @@ Each member carries one of five labels:
 | Member | Replay-mode behavior | Notes |
 |---|---|---|
 | `fetch_record_batch` | implemented | Returns the recorded result as a `pyarrow.RecordBatchReader`. |
-| `fetch_arrow` | implemented | Returns the recorded result as Arrow. |
+| `fetch_arrow` | implemented | Returns the recorded result as a raw Arrow C stream. Single-consumption contract (as in real ADBC): may be called only once, and must be called before any other consuming fetch — otherwise raises `ProgrammingError`. Raises `ProgrammingError` if called before `execute()`. |
 | `fetch_df` | implemented | Returns a pandas DataFrame (pandas imported lazily). |
 | `fetch_polars` | implemented | Returns a polars DataFrame (polars imported lazily). |
 | `fetch_arrow_table` | lenient (deviates from ADBC) | Re-readable result. Raises `ProgrammingError` if called before `execute()`. |
