@@ -97,6 +97,7 @@ class ReplayConnection:
         real_cursor = self._real_conn.cursor() if self._real_conn is not None else None
         return ReplayCursor(
             real_cursor=real_cursor,
+            connection=self,
             mode=self._mode,
             cassette_path=self._cassette_path,
             dialect=self._dialect,

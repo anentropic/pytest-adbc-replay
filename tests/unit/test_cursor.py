@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pyarrow as pa
 import pytest
+from adbc_driver_manager.dbapi import ProgrammingError
 
 from pytest_adbc_replay._cassette_io import (
     interaction_file_paths,
@@ -89,6 +90,26 @@ class TestReplayCursorProtocol:
         cursor = self._make_cursor(tmp_path)
         cursor.execute("SELECT 1")
         cursor.close()  # must not raise
+
+    def test_fetch_after_close_raises_programming_error(self, tmp_path: Path) -> None:
+        """A fetch after close() raises ProgrammingError (close() resets exec state)."""
+        cursor = self._make_cursor(tmp_path)
+        cursor.execute("SELECT 1")
+        cursor.close()
+        with pytest.raises(ProgrammingError):
+            cursor.fetchall()
+
+    def test_failed_execute_clears_stale_results(self, tmp_path: Path) -> None:
+        """A failed execute() must not leave a prior successful result fetchable."""
+        cursor = self._make_cursor(tmp_path)
+        cursor.execute("SELECT 1")
+        assert cursor.fetchall()  # prior result is available
+        with pytest.raises(CassetteMissError):
+            cursor.execute("SELECT 2")  # not in cassette → replay miss
+        # The failed execute() must have cleared prior state, so a fetch now
+        # raises rather than returning the stale "SELECT 1" rows.
+        with pytest.raises(ProgrammingError):
+            cursor.fetchall()
 
     def test_context_manager_protocol(self, tmp_path: Path) -> None:
         """Cursor works as context manager (__enter__ and __exit__)."""

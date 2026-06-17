@@ -6,9 +6,11 @@ import json
 import shutil
 from collections import defaultdict, deque
 from pathlib import Path  # noqa: TC003
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import pyarrow as pa
+from adbc_driver_manager import AdbcStatusCode
+from adbc_driver_manager.dbapi import NotSupportedError, ProgrammingError
 
 from pytest_adbc_replay._cassette_io import (
     cassette_has_interactions,
@@ -24,6 +26,8 @@ from pytest_adbc_replay._params import build_registry, params_to_cache_key, seri
 
 if TYPE_CHECKING:
     from types import TracebackType
+
+    from pytest_adbc_replay._connection import ReplayConnection
 
 
 # ---------------------------------------------------------------------------
@@ -119,8 +123,10 @@ class ReplayCursor:
         driver_name: str | None = None,
         scrubber: object = None,
         wipe_state: dict[str, bool] | None = None,
+        connection: ReplayConnection | None = None,
     ) -> None:
         self._real_cursor = real_cursor
+        self._connection = connection
         self._mode = mode
         self._cassette_path = cassette_path
         self._dialect = dialect
@@ -131,8 +137,21 @@ class ReplayCursor:
         self._scrubber = scrubber
         # Pending result from execute(); replaced per call
         self._pending: pa.Table = pa.table({})
+        # Cassette key of the most recent successful execute(); lets
+        # adbc_execute_schema() recover the schema of a just-executed query whose
+        # single recorded interaction was already consumed off the replay queue.
+        self._last_executed_key: tuple[str, str] | None = None
         # Offset for DBAPI2 fetch methods
         self._fetch_offset: int = 0
+        # DBAPI2 fetchmany() default batch size — read/write to match real
+        # ADBC's writable Cursor.arraysize property.
+        self._arraysize: int = 1
+        # Per-result consumption state for the NEW strict fetch methods only
+        # (fetch_record_batch/fetch_arrow/fetch_df/fetch_polars). Existing
+        # permissive methods do not read these. Reset at the end of execute().
+        self._executed: bool = False
+        self._arrow_consumed: bool = False
+        self._result_consumed: bool = False
         # Lazy init flag — cassette is scanned on first execute() call
         self._initialised: bool = False
         # Ordered-queue replay: key -> deque of pa.Table results (CASS-06)
@@ -196,13 +215,15 @@ class ReplayCursor:
         write_params_json(params_raw, params_path)
         self._record_index += 1
 
-    def _load_from_queue(self, key: tuple[str, str], raw_sql: str, canonical_sql: str) -> pa.Table:
-        """Pop the next result from the replay queue for this key, or raise CassetteMissError."""
-        queue = self._replay_queue.get(key)
-        if queue:
-            result = queue.popleft()
-            return result
-        # Nothing in queue — determine appropriate error
+    def _raise_cassette_miss(self, raw_sql: str, canonical_sql: str) -> NoReturn:
+        """
+        Raise the appropriate CassetteMissError for a missing interaction.
+
+        Three-way selection (shared by _load_from_queue and adbc_execute_schema):
+        directory-missing / empty-directory / interaction-missing. Carries only
+        raw/normalised SQL and the cassette path — never recorded row data or
+        param values (T-03-01).
+        """
         if not self._cassette_path.exists():
             raise CassetteMissError.directory_missing(
                 raw_sql=raw_sql,
@@ -222,6 +243,15 @@ class ReplayCursor:
             cassette_path=self._cassette_path,
         )
 
+    def _load_from_queue(self, key: tuple[str, str], raw_sql: str, canonical_sql: str) -> pa.Table:
+        """Pop the next result from the replay queue for this key, or raise CassetteMissError."""
+        queue = self._replay_queue.get(key)
+        if queue:
+            result = queue.popleft()
+            return result
+        # Nothing in queue — determine appropriate error
+        self._raise_cassette_miss(raw_sql, canonical_sql)
+
     def execute(self, operation: str, parameters: Any = None, **kwargs: Any) -> None:
         """
         Execute a query.
@@ -230,6 +260,17 @@ class ReplayCursor:
         via sqlglot before computing the cassette key. Lazy cassette init
         happens on first execute() call.
         """
+        # Clear any prior result + consumption state up front so a failure in
+        # this execute() (e.g. CassetteMissError on a replay miss, or a real-
+        # driver error while recording) cannot leave stale rows behind for a
+        # later fetch* call. Mirrors real ADBC, whose execute() clears the
+        # previous result before running. On success these are re-set below.
+        self._executed = False
+        self._pending = pa.table({})
+        self._fetch_offset = 0
+        self._last_executed_key = None
+        self._arrow_consumed = False
+        self._result_consumed = False
         self._ensure_initialised()
         canonical = normalise_sql(operation, self._dialect)
         key = self._make_key(canonical, parameters)
@@ -281,18 +322,313 @@ class ReplayCursor:
             self._pending = all_table
             self._fetch_offset = 0
 
+        # Success: record executed state. Reached only if the mode branch above
+        # did not raise (no early return on any branch), so a failed execute()
+        # leaves the up-front cleared state intact rather than this success state.
+        self._executed = True
+        self._last_executed_key = key
+        self._arrow_consumed = False
+        self._result_consumed = False
+
     def executemany(self, operation: str, seq_of_parameters: Any) -> None:
         """Execute a query with multiple parameter sets."""
         if self._real_cursor is not None:
             self._real_cursor.executemany(operation, seq_of_parameters)
         # In replay mode: no-op (not typically used for replay)
 
+    def executescript(self, operation: str) -> None:
+        """
+        Execute a multi-statement script (DBAPI2 extension).
+
+        Record mode: delegate to the real cursor (DDL side effects are baked into
+        subsequently recorded SELECT results). Replay mode: silent no-op — the
+        script's effects are already captured in the cassette and there is no live
+        connection to run against. Writes nothing to the cassette (DBAPI-07).
+        """
+        if self._mode == "none":
+            return  # replay: silent no-op
+        if self._real_cursor is None:
+            raise RuntimeError("ReplayCursor has no real cursor — cannot record executescript().")
+        self._real_cursor.executescript(operation)
+
+    # -----------------------------------------------------------------------
+    # ADBC extension methods (ADBCX-01..04).
+    #
+    # Guiding principle: record mode delegates to the real cursor; replay mode
+    # derives from the cassette where possible, no-ops where safe, or raises an
+    # actionable NotSupportedError. All members mirror the executescript()
+    # dispatch precedent (replay branch when _mode == "none", else delegate
+    # with a RuntimeError guard when _real_cursor is None).
+    # -----------------------------------------------------------------------
+
+    def adbc_execute_schema(self, operation: str, parameters: Any = None) -> pa.Schema:
+        """
+        Return the result schema for a query without executing it (ADBCX-02).
+
+        Replay: derive the schema from the matching recorded result table. PEEK
+        the front of the replay queue first — this does NOT consume the queue or
+        disturb _pending / _fetch_offset, so a schema-before-execute() call leaves
+        the recorded rows intact for a later execute() (D-02 LOCKED). If the queue
+        is empty because execute() already drained this query's single recorded
+        interaction, fall back to the just-executed _pending result's schema, so
+        the common execute()-then-adbc_execute_schema() ordering works the way it
+        does in real ADBC (where adbc_execute_schema is independent of execute()).
+        Raises CassetteMissError only when the query was never recorded. Record:
+        delegate to the real cursor.
+        """
+        if self._mode == "none":
+            self._ensure_initialised()
+            canonical = normalise_sql(operation, self._dialect)
+            key = self._make_key(canonical, parameters)
+            queue = self._replay_queue.get(key)
+            if queue:
+                # Peek the front entry's schema — do NOT popleft (peek-don't-pop).
+                return queue[0].schema
+            if self._executed and key == self._last_executed_key:
+                # This query was just executed; its single recording was already
+                # popped off the queue but its schema is still in _pending.
+                return self._pending.schema
+            # No matching interaction — raise the same error _load_from_queue would.
+            self._raise_cassette_miss(operation, canonical)
+        if self._real_cursor is None:
+            raise RuntimeError(
+                "ReplayCursor has no real cursor — cannot record adbc_execute_schema()."
+            )
+        return self._real_cursor.adbc_execute_schema(operation, parameters)
+
+    def adbc_cancel(self) -> None:
+        """
+        Cancel the in-progress operation (ADBCX-03).
+
+        Replay: safe no-op returning None (nothing is running). Record: delegate
+        to the real cursor's adbc_cancel.
+        """
+        if self._mode == "none":
+            return  # replay: nothing is running
+        if self._real_cursor is None:
+            raise RuntimeError("ReplayCursor has no real cursor — cannot record adbc_cancel().")
+        self._real_cursor.adbc_cancel()
+
+    def adbc_prepare(self, operation: str) -> pa.Schema | None:
+        """
+        Prepare a query, returning its bind-parameter schema (ADBCX-03).
+
+        Replay: pure no-op returning None — preparation is implicit and None is
+        always a valid return (D-04 LOCKED; no schema derivation). Record:
+        delegate to the real cursor's adbc_prepare and return its result.
+        """
+        if self._mode == "none":
+            return None  # replay: preparation is implicit; None is always valid
+        if self._real_cursor is None:
+            raise RuntimeError("ReplayCursor has no real cursor — cannot record adbc_prepare().")
+        return self._real_cursor.adbc_prepare(operation)
+
+    def adbc_ingest(
+        self,
+        table_name: str,
+        data: Any,
+        mode: str = "create",
+        *,
+        catalog_name: str | None = None,
+        db_schema_name: str | None = None,
+        temporary: bool = False,
+    ) -> int:
+        """
+        Ingest a table of Arrow data into the database (ADBCX-04).
+
+        Replay: raises NotSupportedError — ingest writes data to a live database,
+        which a cassette cannot reconstruct. Record: delegate to the real cursor
+        and return the real row count.
+        """
+        if self._mode == "none":
+            raise NotSupportedError(
+                "adbc_ingest() is not supported in replay — it writes data to a live "
+                "database, which a cassette cannot reconstruct."
+            )
+        if self._real_cursor is None:
+            raise RuntimeError("ReplayCursor has no real cursor — cannot record adbc_ingest().")
+        return self._real_cursor.adbc_ingest(
+            table_name,
+            data,
+            mode,
+            catalog_name=catalog_name,
+            db_schema_name=db_schema_name,
+            temporary=temporary,
+        )
+
+    def adbc_execute_partitions(
+        self, operation: str, parameters: Any = None
+    ) -> tuple[list[bytes], pa.Schema]:
+        """
+        Execute a query returning distributed result partitions (ADBCX-04).
+
+        Replay: raises NotSupportedError — partitions stream live distributed
+        results that a cassette cannot reconstruct. Record: delegate to the real
+        cursor.
+        """
+        if self._mode == "none":
+            raise NotSupportedError(
+                "adbc_execute_partitions() is not supported in replay — partitions stream "
+                "live distributed results that a cassette cannot reconstruct."
+            )
+        if self._real_cursor is None:
+            raise RuntimeError(
+                "ReplayCursor has no real cursor — cannot record adbc_execute_partitions()."
+            )
+        return self._real_cursor.adbc_execute_partitions(operation, parameters)
+
+    def adbc_read_partition(self, partition: bytes) -> None:
+        """
+        Read a single distributed result partition (ADBCX-04).
+
+        Replay: raises NotSupportedError — there is no live partition stream to
+        read; a cassette cannot reconstruct it. Record: delegate to the real
+        cursor.
+        """
+        if self._mode == "none":
+            raise NotSupportedError(
+                "adbc_read_partition() is not supported in replay — there is no live "
+                "partition stream to read; a cassette cannot reconstruct it."
+            )
+        if self._real_cursor is None:
+            raise RuntimeError(
+                "ReplayCursor has no real cursor — cannot record adbc_read_partition()."
+            )
+        self._real_cursor.adbc_read_partition(partition)
+
+    def nextset(self) -> None:
+        """Move to the next result set — not supported (DBAPI2, DBAPI-02)."""
+        raise NotSupportedError("Cursor.nextset")
+
+    def callproc(self, procname: str, parameters: Any) -> None:
+        """Call a stored procedure — not supported (DBAPI2, DBAPI-06)."""
+        raise NotSupportedError("Cursor.callproc")
+
+    def setinputsizes(self, sizes: Any) -> None:
+        """Preallocate parameter memory — no-op in replay, delegates in record (DBAPI-05)."""
+        if self._real_cursor is not None:
+            self._real_cursor.setinputsizes(sizes)
+
+    def setoutputsize(self, size: Any, column: Any = None) -> None:
+        """Preallocate result memory — no-op in replay, delegates in record (DBAPI-05)."""
+        if self._real_cursor is not None:
+            self._real_cursor.setoutputsize(size, column)
+
     def fetch_arrow_table(self) -> pa.Table:
         """Fetch all rows of the result as a PyArrow Table."""
+        self._require_executed("fetch_arrow_table")
+        # Mark the result accessed so fetch_arrow()'s "must be called first"
+        # ordering guard holds uniformly (the result stays re-readable — this
+        # flag is set, not checked, by the legacy fetches).
+        self._result_consumed = True
         return self._pending
+
+    # -----------------------------------------------------------------------
+    # Arrow & DataFrame fetch methods (FETCH-01..05) + legacy DBAPI fetches.
+    #
+    # Strict-vs-lenient reconciliation (Phase 4 / PARITY-01, D-02):
+    #
+    # Dimension 1 (pre-execute) — FIXED. ALL fetch methods now share one
+    # uniform pre-execute contract via _require_executed(): calling any of
+    # fetch_arrow_table/fetchall/fetchone/fetchmany (and fetchallarrow, which
+    # inherits the guard through its fetch_arrow_table() delegation), plus the
+    # strict fetch_record_batch/fetch_arrow/fetch_df/fetch_polars methods,
+    # before execute() raises ProgrammingError, matching real ADBC.
+    #
+    # Dimension 2 (re-consumption) — intentionally left LENIENT. The
+    # materialized _pending table makes the legacy fetches re-readable, unlike
+    # real ADBC's consume-once stream. Faithful single-stream simulation is
+    # awkward under this model, so it is documented as a known deviation in
+    # DOC-01 (docs/src/reference/cursor-surface.md) rather than enforced here.
+    #
+    # Note: every fetch (legacy and strict) sets _result_consumed so that
+    # fetch_arrow()'s "must be called before any other consumer" guard holds
+    # uniformly. The legacy fetches only SET this flag; they do not CHECK it,
+    # so they remain re-readable (Dimension 2 leniency is preserved).
+    # -----------------------------------------------------------------------
+
+    def _require_executed(self, method_name: str) -> None:
+        """Raise ADBC's ProgrammingError if called before execute() (D4)."""
+        if not self._executed:
+            raise ProgrammingError(
+                f"Cannot {method_name}() before execute()",
+                status_code=AdbcStatusCode.INVALID_STATE,
+            )
+
+    def fetch_record_batch(self) -> pa.RecordBatchReader:
+        """Fetch the recorded result as a pyarrow.RecordBatchReader (FETCH-01)."""
+        self._require_executed("fetch_record_batch")
+        self._result_consumed = True
+        return self._pending.to_reader()
+
+    def fetch_arrow(self) -> object:
+        """
+        Fetch the recorded result as a raw __arrow_c_stream__ PyCapsule (FETCH-02 / D5).
+
+        Reproduces ADBC's single-consumption contract: can only be called once,
+        and must be called before any other method that consumes data (D4).
+        """
+        self._require_executed("fetch_arrow")
+        if self._arrow_consumed:
+            raise ProgrammingError(
+                "fetch_arrow() can only be called once",
+                status_code=AdbcStatusCode.INVALID_STATE,
+            )
+        if self._result_consumed:
+            raise ProgrammingError(
+                "fetch_arrow() must be called before any other method that consumes data",
+                status_code=AdbcStatusCode.INVALID_STATE,
+            )
+        self._arrow_consumed = True
+        self._result_consumed = True
+        return self._pending.__arrow_c_stream__()
+
+    def fetchallarrow(self) -> pa.Table:
+        """Silent alias of fetch_arrow_table() (FETCH-03 / D3) — no warning, lenient."""
+        return self.fetch_arrow_table()
+
+    def fetch_df(self) -> object:
+        """
+        Fetch the recorded result as a pandas.DataFrame (FETCH-04).
+
+        Lazily imports pandas inside the method (no module-level import, no
+        packaging extra). Raises an actionable error naming pandas if absent.
+        """
+        self._require_executed("fetch_df")
+        try:
+            import pandas  # noqa: PLC0415  (lazy import by design)
+        except ImportError as exc:
+            raise ModuleNotFoundError(
+                "fetch_df() requires pandas, which is not installed. "
+                "Install it with: pip install pandas"
+            ) from exc
+        self._result_consumed = True
+        # Convert via the imported pandas module so the import is genuinely used
+        # (pa.Table.to_pandas() yields a pandas.DataFrame once pandas is present).
+        return pandas.DataFrame(self._pending.to_pandas())
+
+    def fetch_polars(self) -> object:
+        """
+        Fetch the recorded result as a polars.DataFrame (FETCH-05).
+
+        Lazily imports polars inside the method (no module-level import, no
+        packaging extra). Raises an actionable error naming polars if absent.
+        """
+        self._require_executed("fetch_polars")
+        try:
+            import polars  # noqa: PLC0415  (lazy import by design)
+        except ImportError as exc:
+            raise ModuleNotFoundError(
+                "fetch_polars() requires polars, which is not installed. "
+                "Install it with: pip install polars"
+            ) from exc
+        self._result_consumed = True
+        return polars.from_arrow(self._pending)
 
     def fetchall(self) -> list[tuple[object, ...]]:
         """Fetch all rows of the result as a list of tuples (DBAPI2)."""
+        self._require_executed("fetchall")
+        self._result_consumed = True
         if self._pending.num_rows == 0:
             return []
         rows = self._pending.to_pydict()
@@ -301,6 +637,8 @@ class ReplayCursor:
 
     def fetchone(self) -> tuple[object, ...] | None:
         """Fetch the next row from the result (DBAPI2)."""
+        self._require_executed("fetchone")
+        self._result_consumed = True
         if self._fetch_offset >= self._pending.num_rows:
             return None
         row_table = self._pending.slice(self._fetch_offset, 1)
@@ -311,6 +649,8 @@ class ReplayCursor:
 
     def fetchmany(self, size: int | None = None) -> list[tuple[object, ...]]:
         """Fetch up to `size` rows from the result (DBAPI2)."""
+        self._require_executed("fetchmany")
+        self._result_consumed = True
         if size is None:
             size = self.arraysize
         remaining = self._pending.num_rows - self._fetch_offset
@@ -322,6 +662,19 @@ class ReplayCursor:
         batch_dict = batch.to_pydict()
         columns = list(batch_dict.keys())
         return [tuple(batch_dict[col][i] for col in columns) for i in range(batch_size)]
+
+    def next(self) -> tuple[object, ...]:
+        """Fetch the next row, or raise StopIteration (DBAPI2 extension)."""
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration
+        return row
+
+    def __next__(self) -> tuple[object, ...]:
+        return self.next()
+
+    def __iter__(self) -> ReplayCursor:
+        return self
 
     @property
     def description(self) -> list[tuple[object, ...]] | None:
@@ -339,13 +692,61 @@ class ReplayCursor:
     @property
     def arraysize(self) -> int:
         """Number of rows to fetch at a time with fetchmany() (DBAPI2)."""
-        return 1
+        return self._arraysize
+
+    @arraysize.setter
+    def arraysize(self, value: int) -> None:
+        """Set the default fetchmany() batch size (read/write, matches real ADBC)."""
+        self._arraysize = value
+
+    @property
+    def rownumber(self) -> int | None:
+        """
+        Index of the next row to fetch, or None before execute() (DBAPI2).
+
+        ADBC-accurate semantics: None only before execute(); 0 immediately after
+        execute() (before any fetch); N after N rows consumed. This INTENTIONALLY
+        diverges from the literal REQUIREMENTS/ROADMAP wording "None before the
+        first fetch" — real ADBC returns 0 (not None) post-execute pre-fetch.
+        """
+        return None if not self._executed else self._fetch_offset
+
+    @property
+    def connection(self) -> ReplayConnection | None:
+        """The ReplayConnection that created this cursor (DBAPI2 extension)."""
+        return self._connection
+
+    @property
+    def adbc_statement(self) -> Any:  # real type: adbc_driver_manager.AdbcStatement
+        """
+        The underlying ADBC statement (ADBCX-04).
+
+        Replay: raises NotSupportedError — there is no live statement to expose.
+        This intentional raise is NOT a bare AttributeError, so it satisfies the
+        Phase 4 PARITY-01 introspection test (D-06). Record: return the real
+        cursor's adbc_statement.
+        """
+        if self._mode == "none":
+            raise NotSupportedError(
+                "adbc_statement is not available in replay — there is no live statement to expose."
+            )
+        if self._real_cursor is None:
+            raise RuntimeError("ReplayCursor has no real cursor — cannot access adbc_statement.")
+        return self._real_cursor.adbc_statement
 
     def close(self) -> None:
         """Close the cursor and free resources."""
         if self._real_cursor is not None:
             self._real_cursor.close()
         self._pending = pa.table({})
+        # Reset execution/consumption state so a closed cursor no longer reports as
+        # "executed": fetch methods must raise ProgrammingError via _require_executed()
+        # after close(), consistent with the pre-execute() contract.
+        self._executed = False
+        self._fetch_offset = 0
+        self._last_executed_key = None
+        self._arrow_consumed = False
+        self._result_consumed = False
 
     def __enter__(self) -> ReplayCursor:
         return self
