@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.1] - 2026-06-23
+
+### Fixes
+
+- Record mode now preserves the real driver's `connect()` signature on the auto-patched module (`functools.wraps`). Callers that introspect `inspect.signature(driver.connect).parameters` to choose their call convention — notably adbc-poolhouse distinguishing `db_kwargs={...}` "Family A" drivers (Snowflake, PostgreSQL, BigQuery, FlightSQL) from `**kwargs` "Family B" drivers (DuckDB, SQLite) — previously saw the patched `(**kwargs)` signature, mis-detected a Family-A driver as Family B, and flat-unpacked its options. The real driver then received `db_kwargs=None`, surfacing (for Snowflake) as `OperationalError: 260000: account is empty`. The bug affected record mode only against Family-A drivers; replay never opens a real connection, and Family-B drivers genuinely want flat unpacking, so it was previously invisible.
+
 ## [1.1.0] - 2026-06-14
 
 ### Breaking Changes

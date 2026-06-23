@@ -365,3 +365,96 @@ class TestDifferentiatorKeysAutoPatch:
         # Replay
         replay_result = pytester.runpytest("-v")
         replay_result.assert_outcomes(passed=1)
+
+
+class TestPatchedConnectSignaturePreservation:
+    """
+    The patched connect() preserves the real driver's signature (functools.wraps).
+
+    Regression for the downstream report where adbc-poolhouse introspects
+    ``inspect.signature(driver.connect).parameters`` to choose its call
+    convention: drivers exposing a ``db_kwargs=`` parameter ("Family A":
+    Snowflake/Postgres/BigQuery/FlightSQL) are called ``connect(db_kwargs={...})``;
+    others ("Family B": DuckDB/SQLite) get ``connect(**kwargs)``. Without
+    ``functools.wraps`` the patched ``(**kwargs)`` signature hid ``db_kwargs``,
+    so a Family-A driver was mis-detected as Family B and its options were
+    flat-unpacked -- the real driver received ``db_kwargs=None`` ("account is
+    empty"). Replay never opens a real connection so the mis-detection was
+    invisible there; only record mode against a Family-A driver was hit.
+    """
+
+    # A fake "Family A" driver whose connect() mirrors the ADBC dbapi shape
+    # (uri, db_kwargs, conn_kwargs, **kwargs) and records what it received so the
+    # outer test can assert db_kwargs actually arrived populated.
+    _FAKE_DRIVER_CONFTEST = """
+        import sys
+        import types
+        from pathlib import Path
+
+        _REC = Path(__file__).parent / "received_db_kwargs.txt"
+
+        def connect(uri=None, db_kwargs=None, conn_kwargs=None, **kwargs):
+            _REC.write_text(repr({"db_kwargs": db_kwargs, "kwargs": kwargs}))
+            import pyarrow as pa
+
+            cur = types.SimpleNamespace()
+            cur.execute = lambda *a, **k: None
+            cur.fetch_arrow_table = lambda: pa.table({"answer": [1]})
+            cur.close = lambda: None
+            cur.__enter__ = lambda s=cur: s
+            cur.__exit__ = lambda *a: None
+            rc = types.SimpleNamespace()
+            rc.cursor = lambda *a, **k: cur
+            rc.close = lambda: None
+            return rc
+
+        _mod = types.ModuleType("fake_family_a_driver.dbapi")
+        _mod.connect = connect
+        _parent = types.ModuleType("fake_family_a_driver")
+        _parent.dbapi = _mod
+        sys.modules["fake_family_a_driver"] = _parent
+        sys.modules["fake_family_a_driver.dbapi"] = _mod
+    """
+
+    def test_signature_introspecting_caller_gets_db_kwargs_in_record_mode(
+        self, pytester: pytest.Pytester
+    ) -> None:
+        """A poolhouse-style caller forwards db_kwargs to a Family-A driver in record mode."""
+        pytester.makeconftest(self._FAKE_DRIVER_CONFTEST)
+        pytester.makeini("[pytest]\nadbc_auto_patch = fake_family_a_driver.dbapi\n")
+        pytester.makepyfile(
+            """
+            import inspect
+            import pytest
+            import fake_family_a_driver.dbapi as driver
+
+            def _poolhouse_connect(mod, options):
+                # Mirrors adbc-poolhouse: pick the call convention from the live signature.
+                sig = inspect.signature(mod.connect)
+                if "db_kwargs" in sig.parameters:
+                    return mod.connect(db_kwargs=options)   # Family A
+                return mod.connect(**options)               # Family B
+
+            @pytest.mark.adbc_cassette("sig_preservation")
+            def test_family_a_record():
+                # Patched connect must still advertise db_kwargs so we stay on the Family-A path.
+                assert "db_kwargs" in inspect.signature(driver.connect).parameters
+                conn = _poolhouse_connect(
+                    driver, {"adbc.snowflake.sql.account": "myorg-acct", "username": "u"}
+                )
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    assert cur.fetch_arrow_table().column("answer").to_pylist() == [1]
+            """
+        )
+        result = pytester.runpytest("--adbc-record=once", "-v")
+        result.assert_outcomes(passed=1)
+
+        received = (pytester.path / "received_db_kwargs.txt").read_text()
+        assert "myorg-acct" in received, (
+            f"Real driver should receive the account via db_kwargs, got: {received}"
+        )
+        # The options must arrive under db_kwargs=, not flat-unpacked into **kwargs.
+        assert "'db_kwargs': None" not in received, (
+            f"db_kwargs was dropped (flat-unpacked into **kwargs): {received}"
+        )

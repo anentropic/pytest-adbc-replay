@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import importlib
 import threading
 from pathlib import Path
@@ -273,6 +274,14 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         _ORIGINAL_CONNECTS[driver_name] = original_connect
 
         def _make_patched(dn: str, orig: Any) -> Any:
+            # Preserve the real connect()'s signature via __wrapped__ so callers
+            # that introspect inspect.signature(driver.connect) to choose their
+            # call convention (e.g. adbc-poolhouse distinguishing db_kwargs={...}
+            # "Family A" drivers from **kwargs "Family B" drivers) still see the
+            # real parameters. Without this, the patched (**kwargs) signature
+            # makes a Family-A driver look like Family B, so options are flat-
+            # unpacked and the real driver receives db_kwargs=None.
+            @functools.wraps(orig)
             def _patched_connect(**kwargs: Any) -> Any:
                 with _ITEM_LOCK:
                     item = _auto_patch_state["current_item"]
