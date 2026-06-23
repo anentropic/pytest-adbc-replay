@@ -310,7 +310,11 @@ def pytest_sessionstart(session: pytest.Session) -> None:
                     try:
                         bound = inspect.signature(orig).bind_partial(*args)
                         differentiator_args = {**bound.arguments, **kwargs}
-                    except TypeError:
+                    except (TypeError, ValueError):
+                        # Best-effort only: inspect.signature() raises ValueError for
+                        # some C-extension/builtin callables and bind_partial() raises
+                        # TypeError on a mismatch. Either way, fall back to keyword-only
+                        # differentiator args rather than block connection establishment.
                         pass
 
                 conn = session_obj.wrap_from_item(

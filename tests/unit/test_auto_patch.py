@@ -575,3 +575,77 @@ class TestPatchedConnectSignaturePreservation:
             "Expected a 'mysql' differentiator subdir under the driver module dir; "
             f"tree: {sorted(str(p) for p in cassette_base.rglob('*'))}"
         )
+
+    # A fake driver whose connect() is a callable instance with no introspectable
+    # signature (inspect.signature() raises ValueError, as it does for some
+    # C-extension/builtin callables) yet is still callable and records its args.
+    _FAKE_NOSIG_CONFTEST = """
+        import sys
+        import types
+        from pathlib import Path
+
+        _REC = Path(__file__).parent / "received_nosig.txt"
+
+        class _NoSigConnect:
+            @property
+            def __signature__(self):
+                raise ValueError("no signature available")
+
+            def __call__(self, *args, **kwargs):
+                _REC.write_text(repr({"args": args, "kwargs": kwargs}))
+                import pyarrow as pa
+
+                cur = types.SimpleNamespace()
+                cur.execute = lambda *a, **k: None
+                cur.fetch_arrow_table = lambda: pa.table({"answer": [1]})
+                cur.close = lambda: None
+                cur.__enter__ = lambda s=cur: s
+                cur.__exit__ = lambda *a: None
+                rc = types.SimpleNamespace()
+                rc.cursor = lambda *a, **k: cur
+                rc.close = lambda: None
+                return rc
+
+        _mod = types.ModuleType("fake_nosig_driver.dbapi")
+        _mod.connect = _NoSigConnect()
+        _parent = types.ModuleType("fake_nosig_driver")
+        _parent.dbapi = _mod
+        sys.modules["fake_nosig_driver"] = _parent
+        sys.modules["fake_nosig_driver.dbapi"] = _mod
+    """
+
+    def test_unintrospectable_signature_does_not_block_connect(
+        self, pytester: pytest.Pytester
+    ) -> None:
+        """
+        A connect() whose signature can't be introspected still works with positional args.
+
+        Differentiator-arg recovery uses inspect.signature(), which raises
+        ValueError for some C-extension/builtin callables. That recovery is
+        best-effort and must never block connection establishment, so the
+        positional call must still succeed (falling back to keyword-only
+        differentiator args).
+        """
+        pytester.makeconftest(self._FAKE_NOSIG_CONFTEST)
+        pytester.makeini("[pytest]\nadbc_auto_patch = fake_nosig_driver.dbapi\n")
+        pytester.makepyfile(
+            """
+            import pytest
+            import fake_nosig_driver.dbapi as driver
+
+            @pytest.mark.adbc_cassette("nosig")
+            def test_nosig_record():
+                # Positional arg + unintrospectable signature must not raise.
+                conn = driver.connect("mysql", db_kwargs={"adbc.x.account": "acct"})
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    assert cur.fetch_arrow_table().column("answer").to_pylist() == [1]
+            """
+        )
+        result = pytester.runpytest("--adbc-record=once", "-v")
+        result.assert_outcomes(passed=1)
+
+        received = (pytester.path / "received_nosig.txt").read_text()
+        assert "mysql" in received, (
+            f"Positional arg should still reach the real connect(), got: {received}"
+        )
