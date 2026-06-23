@@ -458,3 +458,74 @@ class TestPatchedConnectSignaturePreservation:
         assert "'db_kwargs': None" not in received, (
             f"db_kwargs was dropped (flat-unpacked into **kwargs): {received}"
         )
+
+    # A fake "manager"-style driver whose connect() takes the driver name as a
+    # positional parameter (uri/driver first), mirroring
+    # adbc_driver_manager.dbapi.connect(driver, ...). Records what it received.
+    _FAKE_POSITIONAL_CONFTEST = """
+        import sys
+        import types
+        from pathlib import Path
+
+        _REC = Path(__file__).parent / "received_positional.txt"
+
+        def connect(driver, db_kwargs=None, **kwargs):
+            _REC.write_text(repr({"driver": driver, "db_kwargs": db_kwargs, "kwargs": kwargs}))
+            import pyarrow as pa
+
+            cur = types.SimpleNamespace()
+            cur.execute = lambda *a, **k: None
+            cur.fetch_arrow_table = lambda: pa.table({"answer": [1]})
+            cur.close = lambda: None
+            cur.__enter__ = lambda s=cur: s
+            cur.__exit__ = lambda *a: None
+            rc = types.SimpleNamespace()
+            rc.cursor = lambda *a, **k: cur
+            rc.close = lambda: None
+            return rc
+
+        _mod = types.ModuleType("fake_manager_driver.dbapi")
+        _mod.connect = connect
+        _parent = types.ModuleType("fake_manager_driver")
+        _parent.dbapi = _mod
+        sys.modules["fake_manager_driver"] = _parent
+        sys.modules["fake_manager_driver.dbapi"] = _mod
+    """
+
+    def test_positional_connect_arg_forwarded_in_record_mode(
+        self, pytester: pytest.Pytester
+    ) -> None:
+        """
+        Positional connect() args (e.g. the driver path) reach the real driver.
+
+        Because functools.wraps advertises the real signature, callers may pass
+        the leading parameter positionally (as is idiomatic for
+        ``adbc_driver_manager.dbapi.connect(driver, ...)``); the patched wrapper
+        must accept and forward it rather than raising TypeError.
+        """
+        pytester.makeconftest(self._FAKE_POSITIONAL_CONFTEST)
+        pytester.makeini("[pytest]\nadbc_auto_patch = fake_manager_driver.dbapi\n")
+        pytester.makepyfile(
+            """
+            import pytest
+            import fake_manager_driver.dbapi as driver
+
+            @pytest.mark.adbc_cassette("positional_forward")
+            def test_positional_record():
+                # 'driver' passed positionally, options as db_kwargs.
+                conn = driver.connect(
+                    "/path/to/driver.so", db_kwargs={"adbc.x.account": "acct"}
+                )
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    assert cur.fetch_arrow_table().column("answer").to_pylist() == [1]
+            """
+        )
+        result = pytester.runpytest("--adbc-record=once", "-v")
+        result.assert_outcomes(passed=1)
+
+        received = (pytester.path / "received_positional.txt").read_text()
+        assert "/path/to/driver.so" in received, (
+            f"Positional driver arg should reach the real connect(), got: {received}"
+        )
+        assert "acct" in received, f"db_kwargs should also be forwarded, got: {received}"

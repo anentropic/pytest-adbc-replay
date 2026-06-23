@@ -32,12 +32,14 @@ class ReplayConnection:
         dialect: str | None = None,
         param_serialisers: dict[Any, dict[str, Any]] | None = None,
         connect_fn: Any = None,
+        conn_args: tuple[Any, ...] = (),
         scrub_keys_global: list[str] | None = None,
         scrub_keys_per_driver: dict[str, list[str]] | None = None,
         scrubber: object = None,
     ) -> None:
         self._driver_module_name = driver_module_name
         self._db_kwargs = db_kwargs
+        self._conn_args = conn_args
         self._mode = mode
         self._cassette_path = cassette_path
         self._dialect = dialect
@@ -55,11 +57,13 @@ class ReplayConnection:
             # This will fail loudly if the driver is not installed — expected.
             if connect_fn is not None:
                 # Use the provided callable (bypasses any monkeypatching of driver.connect)
-                self._real_conn = connect_fn(**db_kwargs)
+                self._real_conn = connect_fn(*conn_args, **db_kwargs)
             else:
                 driver = importlib.import_module(driver_module_name)
-                # ADBC drivers expose connect(**db_kwargs)
-                self._real_conn = driver.connect(**db_kwargs)
+                # ADBC drivers expose connect(*args, **db_kwargs); positional args
+                # (e.g. the driver path for adbc_driver_manager.dbapi.connect) are
+                # forwarded verbatim alongside the keyword options.
+                self._real_conn = driver.connect(*conn_args, **db_kwargs)
 
     def adbc_clone(self) -> ReplayConnection:
         """
@@ -76,6 +80,7 @@ class ReplayConnection:
         clone = ReplayConnection.__new__(ReplayConnection)
         clone._driver_module_name = self._driver_module_name
         clone._db_kwargs = self._db_kwargs
+        clone._conn_args = self._conn_args
         clone._mode = self._mode
         clone._cassette_path = self._cassette_path
         clone._dialect = self._dialect

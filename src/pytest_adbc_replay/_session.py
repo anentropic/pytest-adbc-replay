@@ -163,6 +163,7 @@ class ReplaySession:
         item: pytest.Item,
         db_kwargs: dict[str, object] | None = None,
         connect_fn: object | None = None,
+        conn_args: tuple[object, ...] = (),
     ) -> ReplayConnection:
         """
         Create a ReplayConnection for a test item (not a FixtureRequest).
@@ -182,6 +183,9 @@ class ReplaySession:
                 when opening a real connection in record mode. Pass the original
                 (un-patched) connect callable here to avoid recursion when the driver
                 module has been monkeypatched by the auto-patch hook.
+            conn_args: Positional arguments forwarded verbatim to the real driver's
+                connect() in record mode (e.g. the driver path for
+                ``adbc_driver_manager.dbapi.connect(driver, ...)``).
 
         Returns:
             ReplayConnection ready for use in the test.
@@ -234,6 +238,7 @@ class ReplaySession:
             dialect=resolved_dialect,
             param_serialisers=self.param_serialisers,
             connect_fn=connect_fn,
+            conn_args=conn_args,
             scrub_keys_global=self.scrub_keys_global,
             scrub_keys_per_driver=self.scrub_keys_per_driver,
             scrubber=self.scrubber,

@@ -282,23 +282,25 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             # makes a Family-A driver look like Family B, so options are flat-
             # unpacked and the real driver receives db_kwargs=None.
             @functools.wraps(orig)
-            def _patched_connect(**kwargs: Any) -> Any:
+            def _patched_connect(*args: Any, **kwargs: Any) -> Any:
                 with _ITEM_LOCK:
                     item = _auto_patch_state["current_item"]
 
                 if item is None:
                     # Called outside a test — pass through to real driver
-                    return orig(**kwargs)
+                    return orig(*args, **kwargs)
 
                 marker = item.get_closest_marker("adbc_cassette")
                 if marker is None:
                     # No cassette marker — pass through to real driver
-                    return orig(**kwargs)
+                    return orig(*args, **kwargs)
 
                 # Retrieve the session-scoped ReplaySession (always set above)
                 session_obj: ReplaySession = _auto_patch_state["session_state"]
 
-                conn = session_obj.wrap_from_item(dn, item, db_kwargs=dict(kwargs), connect_fn=orig)
+                conn = session_obj.wrap_from_item(
+                    dn, item, db_kwargs=dict(kwargs), connect_fn=orig, conn_args=args
+                )
                 with _ITEM_LOCK:
                     _OPEN_CONNECTIONS.setdefault(id(item), []).append(conn)
                 return conn
