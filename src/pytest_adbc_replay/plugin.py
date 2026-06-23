@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import functools
 import importlib
+import inspect
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -298,8 +299,27 @@ def pytest_sessionstart(session: pytest.Session) -> None:
                 # Retrieve the session-scoped ReplaySession (always set above)
                 session_obj: ReplaySession = _auto_patch_state["session_state"]
 
+                # Recover parameter names for any positionally-passed arguments
+                # (e.g. connect("mysql", ...)) so cassette differentiator keys that
+                # name a connect() parameter — Foundry keys on "driver" — still
+                # resolve when the value is passed positionally rather than by
+                # keyword. Forwarding to the real driver is unaffected (it uses the
+                # original args/kwargs via conn_args).
+                differentiator_args: dict[str, Any] = dict(kwargs)
+                if args:
+                    try:
+                        bound = inspect.signature(orig).bind_partial(*args)
+                        differentiator_args = {**bound.arguments, **kwargs}
+                    except TypeError:
+                        pass
+
                 conn = session_obj.wrap_from_item(
-                    dn, item, db_kwargs=dict(kwargs), connect_fn=orig, conn_args=args
+                    dn,
+                    item,
+                    db_kwargs=dict(kwargs),
+                    connect_fn=orig,
+                    conn_args=args,
+                    differentiator_args=differentiator_args,
                 )
                 with _ITEM_LOCK:
                     _OPEN_CONNECTIONS.setdefault(id(item), []).append(conn)

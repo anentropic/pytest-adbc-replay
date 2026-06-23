@@ -529,3 +529,49 @@ class TestPatchedConnectSignaturePreservation:
             f"Positional driver arg should reach the real connect(), got: {received}"
         )
         assert "acct" in received, f"db_kwargs should also be forwarded, got: {received}"
+
+    def test_positional_driver_resolves_cassette_differentiator(
+        self, pytester: pytest.Pytester
+    ) -> None:
+        """
+        A positionally-passed `driver` still drives the cassette differentiator subdir.
+
+        The default differentiator key is ``driver``. When ``driver`` is passed
+        positionally (``connect("mysql", ...)``) it lands in conn_args, not the
+        keyword dict, so the patched wrapper resolves positional args back to their
+        parameter names for differentiator lookup -- otherwise Foundry drivers
+        sharing ``adbc_driver_manager.dbapi`` would collide on the same cassette path.
+        """
+        pytester.makeconftest(self._FAKE_POSITIONAL_CONFTEST)
+        pytester.makeini("[pytest]\nadbc_auto_patch = fake_manager_driver.dbapi\n")
+        pytester.makepyfile(
+            """
+            import pytest
+            import fake_manager_driver.dbapi as driver
+
+            @pytest.mark.adbc_cassette
+            def test_positional_driver_differentiator():
+                # 'mysql' passed positionally as the leading `driver` parameter.
+                conn = driver.connect("mysql", db_kwargs={"adbc.x.account": "acct"})
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    assert cur.fetch_arrow_table().column("answer").to_pylist() == [1]
+            """
+        )
+        result = pytester.runpytest("--adbc-record=once", "-v")
+        result.assert_outcomes(passed=1)
+
+        # A "mysql" differentiator subdir must appear under the driver-module dir.
+        cassette_base = pytester.path / "tests" / "cassettes"
+        mysql_dir = next(
+            (
+                p
+                for p in cassette_base.rglob("*")
+                if p.is_dir() and p.name == "mysql" and p.parent.name == "fake_manager_driver.dbapi"
+            ),
+            None,
+        )
+        assert mysql_dir is not None, (
+            "Expected a 'mysql' differentiator subdir under the driver module dir; "
+            f"tree: {sorted(str(p) for p in cassette_base.rglob('*'))}"
+        )
