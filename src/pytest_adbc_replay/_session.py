@@ -163,6 +163,8 @@ class ReplaySession:
         item: pytest.Item,
         db_kwargs: dict[str, object] | None = None,
         connect_fn: object | None = None,
+        conn_args: tuple[object, ...] = (),
+        differentiator_args: dict[str, object] | None = None,
     ) -> ReplayConnection:
         """
         Create a ReplayConnection for a test item (not a FixtureRequest).
@@ -182,6 +184,14 @@ class ReplaySession:
                 when opening a real connection in record mode. Pass the original
                 (un-patched) connect callable here to avoid recursion when the driver
                 module has been monkeypatched by the auto-patch hook.
+            conn_args: Positional arguments forwarded verbatim to the real driver's
+                connect() in record mode (e.g. the driver path for
+                ``adbc_driver_manager.dbapi.connect(driver, ...)``).
+            differentiator_args: Optional name-keyed view of all connect() arguments
+                (positional args resolved to their parameter names) used for cassette
+                differentiator-key lookup. Falls back to ``db_kwargs`` when not given.
+                Lets a differentiator key naming a connect() parameter (e.g. Foundry's
+                ``driver``) resolve even when passed positionally.
 
         Returns:
             ReplayConnection ready for use in the test.
@@ -189,9 +199,12 @@ class ReplaySession:
         # Lazy import to avoid circular imports at module level
         from pytest_adbc_replay._connection import ReplayConnection  # noqa: PLC0415
 
-        # Extract differentiator segments from db_kwargs using default keys
+        # Extract differentiator segments using default keys. Prefer the
+        # name-resolved argument view (which includes positionally-passed args)
+        # when provided, falling back to db_kwargs for the explicit wrap() API.
+        diff_source = differentiator_args if differentiator_args is not None else db_kwargs
         diff_segments = self._extract_differentiator_segments(
-            db_kwargs, self.differentiator_keys_default
+            diff_source, self.differentiator_keys_default
         )
 
         # Priority: marker dialect > per-driver ini > global ini > None
@@ -234,6 +247,7 @@ class ReplaySession:
             dialect=resolved_dialect,
             param_serialisers=self.param_serialisers,
             connect_fn=connect_fn,
+            conn_args=conn_args,
             scrub_keys_global=self.scrub_keys_global,
             scrub_keys_per_driver=self.scrub_keys_per_driver,
             scrubber=self.scrubber,

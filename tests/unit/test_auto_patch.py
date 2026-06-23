@@ -365,3 +365,287 @@ class TestDifferentiatorKeysAutoPatch:
         # Replay
         replay_result = pytester.runpytest("-v")
         replay_result.assert_outcomes(passed=1)
+
+
+class TestPatchedConnectSignaturePreservation:
+    """
+    The patched connect() preserves the real driver's signature (functools.wraps).
+
+    Regression for the downstream report where adbc-poolhouse introspects
+    ``inspect.signature(driver.connect).parameters`` to choose its call
+    convention: drivers exposing a ``db_kwargs=`` parameter ("Family A":
+    Snowflake/Postgres/BigQuery/FlightSQL) are called ``connect(db_kwargs={...})``;
+    others ("Family B": DuckDB/SQLite) get ``connect(**kwargs)``. Without
+    ``functools.wraps`` the patched ``(**kwargs)`` signature hid ``db_kwargs``,
+    so a Family-A driver was mis-detected as Family B and its options were
+    flat-unpacked -- the real driver received ``db_kwargs=None`` ("account is
+    empty"). Replay never opens a real connection so the mis-detection was
+    invisible there; only record mode against a Family-A driver was hit.
+    """
+
+    # A fake "Family A" driver whose connect() mirrors the ADBC dbapi shape
+    # (uri, db_kwargs, conn_kwargs, **kwargs) and records what it received so the
+    # outer test can assert db_kwargs actually arrived populated.
+    _FAKE_DRIVER_CONFTEST = """
+        import sys
+        import types
+        from pathlib import Path
+
+        _REC = Path(__file__).parent / "received_db_kwargs.txt"
+
+        def connect(uri=None, db_kwargs=None, conn_kwargs=None, **kwargs):
+            _REC.write_text(repr({"db_kwargs": db_kwargs, "kwargs": kwargs}))
+            import pyarrow as pa
+
+            cur = types.SimpleNamespace()
+            cur.execute = lambda *a, **k: None
+            cur.fetch_arrow_table = lambda: pa.table({"answer": [1]})
+            cur.close = lambda: None
+            cur.__enter__ = lambda s=cur: s
+            cur.__exit__ = lambda *a: None
+            rc = types.SimpleNamespace()
+            rc.cursor = lambda *a, **k: cur
+            rc.close = lambda: None
+            return rc
+
+        _mod = types.ModuleType("fake_family_a_driver.dbapi")
+        _mod.connect = connect
+        _parent = types.ModuleType("fake_family_a_driver")
+        _parent.dbapi = _mod
+        sys.modules["fake_family_a_driver"] = _parent
+        sys.modules["fake_family_a_driver.dbapi"] = _mod
+    """
+
+    def test_signature_introspecting_caller_gets_db_kwargs_in_record_mode(
+        self, pytester: pytest.Pytester
+    ) -> None:
+        """A poolhouse-style caller forwards db_kwargs to a Family-A driver in record mode."""
+        pytester.makeconftest(self._FAKE_DRIVER_CONFTEST)
+        pytester.makeini("[pytest]\nadbc_auto_patch = fake_family_a_driver.dbapi\n")
+        pytester.makepyfile(
+            """
+            import inspect
+            import pytest
+            import fake_family_a_driver.dbapi as driver
+
+            def _poolhouse_connect(mod, options):
+                # Mirrors adbc-poolhouse: pick the call convention from the live signature.
+                sig = inspect.signature(mod.connect)
+                if "db_kwargs" in sig.parameters:
+                    return mod.connect(db_kwargs=options)   # Family A
+                return mod.connect(**options)               # Family B
+
+            @pytest.mark.adbc_cassette("sig_preservation")
+            def test_family_a_record():
+                # Patched connect must still advertise db_kwargs so we stay on the Family-A path.
+                assert "db_kwargs" in inspect.signature(driver.connect).parameters
+                conn = _poolhouse_connect(
+                    driver, {"adbc.snowflake.sql.account": "myorg-acct", "username": "u"}
+                )
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    assert cur.fetch_arrow_table().column("answer").to_pylist() == [1]
+            """
+        )
+        result = pytester.runpytest("--adbc-record=once", "-v")
+        result.assert_outcomes(passed=1)
+
+        received = (pytester.path / "received_db_kwargs.txt").read_text()
+        assert "myorg-acct" in received, (
+            f"Real driver should receive the account via db_kwargs, got: {received}"
+        )
+        # The options must arrive under db_kwargs=, not flat-unpacked into **kwargs.
+        assert "'db_kwargs': None" not in received, (
+            f"db_kwargs was dropped (flat-unpacked into **kwargs): {received}"
+        )
+
+    # A fake "manager"-style driver whose connect() takes the driver name as a
+    # positional parameter (uri/driver first), mirroring
+    # adbc_driver_manager.dbapi.connect(driver, ...). Records what it received.
+    _FAKE_POSITIONAL_CONFTEST = """
+        import sys
+        import types
+        from pathlib import Path
+
+        _REC = Path(__file__).parent / "received_positional.txt"
+
+        def connect(driver, db_kwargs=None, **kwargs):
+            _REC.write_text(repr({"driver": driver, "db_kwargs": db_kwargs, "kwargs": kwargs}))
+            import pyarrow as pa
+
+            cur = types.SimpleNamespace()
+            cur.execute = lambda *a, **k: None
+            cur.fetch_arrow_table = lambda: pa.table({"answer": [1]})
+            cur.close = lambda: None
+            cur.__enter__ = lambda s=cur: s
+            cur.__exit__ = lambda *a: None
+            rc = types.SimpleNamespace()
+            rc.cursor = lambda *a, **k: cur
+            rc.close = lambda: None
+            return rc
+
+        _mod = types.ModuleType("fake_manager_driver.dbapi")
+        _mod.connect = connect
+        _parent = types.ModuleType("fake_manager_driver")
+        _parent.dbapi = _mod
+        sys.modules["fake_manager_driver"] = _parent
+        sys.modules["fake_manager_driver.dbapi"] = _mod
+    """
+
+    def test_positional_connect_arg_forwarded_in_record_mode(
+        self, pytester: pytest.Pytester
+    ) -> None:
+        """
+        Positional connect() args (e.g. the driver path) reach the real driver.
+
+        Because functools.wraps advertises the real signature, callers may pass
+        the leading parameter positionally (as is idiomatic for
+        ``adbc_driver_manager.dbapi.connect(driver, ...)``); the patched wrapper
+        must accept and forward it rather than raising TypeError.
+        """
+        pytester.makeconftest(self._FAKE_POSITIONAL_CONFTEST)
+        pytester.makeini("[pytest]\nadbc_auto_patch = fake_manager_driver.dbapi\n")
+        pytester.makepyfile(
+            """
+            import pytest
+            import fake_manager_driver.dbapi as driver
+
+            @pytest.mark.adbc_cassette("positional_forward")
+            def test_positional_record():
+                # 'driver' passed positionally, options as db_kwargs.
+                conn = driver.connect(
+                    "/path/to/driver.so", db_kwargs={"adbc.x.account": "acct"}
+                )
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    assert cur.fetch_arrow_table().column("answer").to_pylist() == [1]
+            """
+        )
+        result = pytester.runpytest("--adbc-record=once", "-v")
+        result.assert_outcomes(passed=1)
+
+        received = (pytester.path / "received_positional.txt").read_text()
+        assert "/path/to/driver.so" in received, (
+            f"Positional driver arg should reach the real connect(), got: {received}"
+        )
+        assert "acct" in received, f"db_kwargs should also be forwarded, got: {received}"
+
+    def test_positional_driver_resolves_cassette_differentiator(
+        self, pytester: pytest.Pytester
+    ) -> None:
+        """
+        A positionally-passed `driver` still drives the cassette differentiator subdir.
+
+        The default differentiator key is ``driver``. When ``driver`` is passed
+        positionally (``connect("mysql", ...)``) it lands in conn_args, not the
+        keyword dict, so the patched wrapper resolves positional args back to their
+        parameter names for differentiator lookup -- otherwise Foundry drivers
+        sharing ``adbc_driver_manager.dbapi`` would collide on the same cassette path.
+        """
+        pytester.makeconftest(self._FAKE_POSITIONAL_CONFTEST)
+        pytester.makeini("[pytest]\nadbc_auto_patch = fake_manager_driver.dbapi\n")
+        pytester.makepyfile(
+            """
+            import pytest
+            import fake_manager_driver.dbapi as driver
+
+            @pytest.mark.adbc_cassette
+            def test_positional_driver_differentiator():
+                # 'mysql' passed positionally as the leading `driver` parameter.
+                conn = driver.connect("mysql", db_kwargs={"adbc.x.account": "acct"})
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    assert cur.fetch_arrow_table().column("answer").to_pylist() == [1]
+            """
+        )
+        result = pytester.runpytest("--adbc-record=once", "-v")
+        result.assert_outcomes(passed=1)
+
+        # A "mysql" differentiator subdir must appear under the driver-module dir.
+        cassette_base = pytester.path / "tests" / "cassettes"
+        mysql_dir = next(
+            (
+                p
+                for p in cassette_base.rglob("*")
+                if p.is_dir() and p.name == "mysql" and p.parent.name == "fake_manager_driver.dbapi"
+            ),
+            None,
+        )
+        assert mysql_dir is not None, (
+            "Expected a 'mysql' differentiator subdir under the driver module dir; "
+            f"tree: {sorted(str(p) for p in cassette_base.rglob('*'))}"
+        )
+
+    # A fake driver whose connect() is a callable instance with no introspectable
+    # signature (inspect.signature() raises ValueError, as it does for some
+    # C-extension/builtin callables) yet is still callable and records its args.
+    _FAKE_NOSIG_CONFTEST = """
+        import sys
+        import types
+        from pathlib import Path
+
+        _REC = Path(__file__).parent / "received_nosig.txt"
+
+        class _NoSigConnect:
+            @property
+            def __signature__(self):
+                raise ValueError("no signature available")
+
+            def __call__(self, *args, **kwargs):
+                _REC.write_text(repr({"args": args, "kwargs": kwargs}))
+                import pyarrow as pa
+
+                cur = types.SimpleNamespace()
+                cur.execute = lambda *a, **k: None
+                cur.fetch_arrow_table = lambda: pa.table({"answer": [1]})
+                cur.close = lambda: None
+                cur.__enter__ = lambda s=cur: s
+                cur.__exit__ = lambda *a: None
+                rc = types.SimpleNamespace()
+                rc.cursor = lambda *a, **k: cur
+                rc.close = lambda: None
+                return rc
+
+        _mod = types.ModuleType("fake_nosig_driver.dbapi")
+        _mod.connect = _NoSigConnect()
+        _parent = types.ModuleType("fake_nosig_driver")
+        _parent.dbapi = _mod
+        sys.modules["fake_nosig_driver"] = _parent
+        sys.modules["fake_nosig_driver.dbapi"] = _mod
+    """
+
+    def test_unintrospectable_signature_does_not_block_connect(
+        self, pytester: pytest.Pytester
+    ) -> None:
+        """
+        A connect() whose signature can't be introspected still works with positional args.
+
+        Differentiator-arg recovery uses inspect.signature(), which raises
+        ValueError for some C-extension/builtin callables. That recovery is
+        best-effort and must never block connection establishment, so the
+        positional call must still succeed (falling back to keyword-only
+        differentiator args).
+        """
+        pytester.makeconftest(self._FAKE_NOSIG_CONFTEST)
+        pytester.makeini("[pytest]\nadbc_auto_patch = fake_nosig_driver.dbapi\n")
+        pytester.makepyfile(
+            """
+            import pytest
+            import fake_nosig_driver.dbapi as driver
+
+            @pytest.mark.adbc_cassette("nosig")
+            def test_nosig_record():
+                # Positional arg + unintrospectable signature must not raise.
+                conn = driver.connect("mysql", db_kwargs={"adbc.x.account": "acct"})
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    assert cur.fetch_arrow_table().column("answer").to_pylist() == [1]
+            """
+        )
+        result = pytester.runpytest("--adbc-record=once", "-v")
+        result.assert_outcomes(passed=1)
+
+        received = (pytester.path / "received_nosig.txt").read_text()
+        assert "mysql" in received, (
+            f"Positional arg should still reach the real connect(), got: {received}"
+        )
