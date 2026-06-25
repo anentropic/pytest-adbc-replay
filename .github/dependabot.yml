@@ -16,5 +16,6 @@ updates:
       interval: "weekly"
       day: "monday"
     groups:
-      dev-dependencies:
-        dependency-type: "development"
+      python-uv:
+        patterns:
+          - "*"
