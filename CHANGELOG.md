@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.2] - 2026-10-14
+
+### Changes
+
+- The project moved to the s-layer GitHub organisation. The package's Homepage, Source, Issues and Documentation links now point at github.com/s-layer/pytest-adbc-replay and s-layer.github.io/pytest-adbc-replay. No code changes.
+
 ## [1.1.1] - 2026-06-23
 
 ### Fixes
