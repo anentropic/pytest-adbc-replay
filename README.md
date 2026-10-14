@@ -2,7 +2,7 @@
 
 [ [Docs](https://s-layer.github.io/pytest-adbc-replay) ]
 
-Record/replay testing for ADBC database queries, as a pytest plugin.
+Record and replay testing for ADBC database queries, as a pytest plugin.
 
 ## What / Why
 
