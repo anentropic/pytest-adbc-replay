@@ -154,7 +154,7 @@ class TestFetchArrow:
         capsule = cursor.fetch_arrow()
         shim = _CapsuleShim(capsule)
         pa.RecordBatchReader.from_stream(shim).read_all()  # consumes the capsule
-        with pytest.raises(pa.lib.ArrowInvalid):
+        with pytest.raises(pa.ArrowInvalid):
             pa.RecordBatchReader.from_stream(shim).read_all()
 
     def test_fresh_execute_resets_consumption(self, tmp_path: Path) -> None:
