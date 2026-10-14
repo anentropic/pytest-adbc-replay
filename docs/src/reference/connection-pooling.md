@@ -26,7 +26,7 @@ with clone.cursor() as cur:
     cur.execute("SELECT 1")
 ```
 
-Pool libraries such as [adbc-poolhouse](https://github.com/anentropic/adbc-poolhouse) call `adbc_clone()` internally when checking out connections.
+Pool libraries such as [adbc-poolhouse](https://github.com/s-layer/adbc-poolhouse) call `adbc_clone()` internally when checking out connections.
 
 ---
 

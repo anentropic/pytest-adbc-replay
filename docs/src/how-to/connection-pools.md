@@ -1,6 +1,6 @@
 # Use with connection pools
 
-This guide shows how to test code that uses a connection pool with pytest-adbc-replay. The examples use [adbc-poolhouse](https://github.com/anentropic/adbc-poolhouse), but any pool library that calls `adbc_clone()` internally works the same way.
+This guide shows how to test code that uses a connection pool with pytest-adbc-replay. The examples use [adbc-poolhouse](https://github.com/s-layer/adbc-poolhouse), but any pool library that calls `adbc_clone()` internally works the same way.
 
 ## Configure auto-patching
 
