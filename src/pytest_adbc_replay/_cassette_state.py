@@ -4,6 +4,12 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections import deque
+
+    import pyarrow as pa
 
 
 @dataclass
@@ -21,10 +27,16 @@ class CassetteState:
         once_replay: 'once' mode: whether this test replays (True) or records
             (False). Decided on the test's first execute() from whether the
             cassette had interactions then; None until that first execute().
-        write_lock: Serialises interaction writes so concurrent cursors never
-            take the same interaction index.
+        replay_queue: Recorded results per cassette key, in recorded order, loaded
+            once per test on its first replaying execute(). Shared so that a
+            query repeated across connections replays each recording in turn,
+            as it was recorded, rather than every connection replaying the first.
+            None until loaded.
+        write_lock: Serialises cassette writes, the replay-queue load and pops so
+            concurrent cursors never take the same interaction index or result.
     """
 
     wiped: bool = False
     once_replay: bool | None = None
+    replay_queue: dict[tuple[str, str], deque[pa.Table]] | None = field(default=None, repr=False)
     write_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)

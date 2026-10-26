@@ -164,7 +164,8 @@ class ReplayCursor:
         self._result_consumed: bool = False
         # Lazy init flag — cassette is scanned on first execute() call
         self._initialised: bool = False
-        # Ordered-queue replay: key -> deque of pa.Table results (CASS-06)
+        # Ordered-queue replay: key -> deque of pa.Table results (CASS-06). Replaced
+        # on first execute() by the queue shared with the test's other cursors.
         self._replay_queue: dict[tuple[str, str], deque[pa.Table]] = defaultdict(deque)
         # Interaction count when this cursor last looked: the index the next
         # recording would take. Written interactions are indexed from the cassette
@@ -200,14 +201,16 @@ class ReplayCursor:
             # 'once' test).
             if self._mode == "all" or (self._mode == "once" and not state.once_replay):
                 return
-            # Load existing cassette into replay queue (for none/once/new_episodes),
-            # under the lock so a concurrent recording is never read half-written.
-            interactions = load_all_interactions(self._cassette_path)
-        for canonical_sql, table, params_raw in interactions:
-            key = self._make_key_from_canonical(canonical_sql, params_raw)
-            self._replay_queue[key].append(table)
-        # Record index = next index to write after existing ones
-        self._record_index = len(interactions)
+            # Load the cassette into the test's shared replay queue (for
+            # none/once/new_episodes) once, under the lock so a concurrent
+            # recording is never read half-written.
+            if state.replay_queue is None:
+                state.replay_queue = defaultdict(deque)
+                for canonical_sql, table, params_raw in load_all_interactions(self._cassette_path):
+                    key = self._make_key_from_canonical(canonical_sql, params_raw)
+                    state.replay_queue[key].append(table)
+            self._replay_queue = state.replay_queue
+            self._record_index = count_interactions(self._cassette_path)
 
     def _make_key(self, canonical_sql: str, params: Any) -> tuple[str, str]:
         """Make a hashable cassette key from canonical SQL and raw params."""
@@ -282,10 +285,10 @@ class ReplayCursor:
 
     def _load_from_queue(self, key: tuple[str, str], raw_sql: str, canonical_sql: str) -> pa.Table:
         """Pop the next result from the replay queue for this key, or raise CassetteMissError."""
-        queue = self._replay_queue.get(key)
-        if queue:
-            result = queue.popleft()
-            return result
+        with self._cassette_state.write_lock:
+            queue = self._replay_queue.get(key)
+            if queue:
+                return queue.popleft()
         # Nothing in queue — determine appropriate error
         self._raise_cassette_miss(raw_sql, canonical_sql)
 
@@ -333,10 +336,12 @@ class ReplayCursor:
             self._fetch_offset = 0
 
         elif self._mode == "new_episodes":
-            queue = self._replay_queue.get(key)
-            if queue:
+            with self._cassette_state.write_lock:
+                queue = self._replay_queue.get(key)
+                replayed = queue.popleft() if queue else None
+            if replayed is not None:
                 # Existing interaction — replay
-                self._pending = queue.popleft()
+                self._pending = replayed
             else:
                 # New interaction — record
                 if self._real_cursor is None:

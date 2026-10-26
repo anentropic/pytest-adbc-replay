@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pyarrow as pa
+import pytest
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -18,6 +19,7 @@ from pytest_adbc_replay._cassette_io import (
     write_sql_file,
 )
 from pytest_adbc_replay._connection import ReplayConnection
+from pytest_adbc_replay._exceptions import CassetteMissError
 from pytest_adbc_replay._normaliser import normalise_sql
 
 
@@ -79,23 +81,37 @@ class TestAdBCClone:
         mock_real_conn.adbc_clone.assert_called_once()
         assert clone._real_conn is mock_clone_conn
 
-    def test_clone_cursor_independent_queue(self, tmp_path: Path) -> None:
-        """CLONE-05: Clone's cursor has independent replay queue."""
-        source = self._make_connection(tmp_path, mode="none")
-        clone = source.adbc_clone()
+    def test_clone_cursor_shares_replay_queue(self, tmp_path: Path) -> None:
+        """
+        CLONE-05: source and clone cursors replay one shared queue, in recorded order.
 
-        # Both source and clone should be able to replay the same query independently
+        Recording appends every connection's queries to one cassette, so a query
+        both connections ran is recorded twice; replay hands those recordings out
+        in that order, whichever connection asks, and a third run is a miss.
+        """
+        cassette = tmp_path / "cassette"
+        cassette.mkdir()
+        for index, value in enumerate((10, 20)):
+            sql_path, arrow_path, params_path = interaction_file_paths(cassette, index)
+            write_sql_file(normalise_sql("SELECT 1"), sql_path)
+            write_arrow_table(pa.table({"v": [value]}), arrow_path)
+            write_params_json(None, params_path)
+        source = ReplayConnection(
+            driver_module_name="adbc_driver_test",
+            db_kwargs={},
+            mode="none",
+            cassette_path=cassette,
+        )
+        clone = source.adbc_clone()
         source_cursor = source.cursor()
         clone_cursor = clone.cursor()
 
         source_cursor.execute("SELECT 1")
+        assert source_cursor.fetch_arrow_table().column("v").to_pylist() == [10]
         clone_cursor.execute("SELECT 1")
-
-        source_result = source_cursor.fetch_arrow_table()
-        clone_result = clone_cursor.fetch_arrow_table()
-
-        assert source_result.num_rows == 1
-        assert clone_result.num_rows == 1
+        assert clone_cursor.fetch_arrow_table().column("v").to_pylist() == [20]
+        with pytest.raises(CassetteMissError):
+            source.cursor().execute("SELECT 1")
 
     def test_clone_of_clone(self, tmp_path: Path) -> None:
         """CLONE-07: Clone-of-clone works and shares cassette path and cassette state."""

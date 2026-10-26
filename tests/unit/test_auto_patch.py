@@ -129,6 +129,44 @@ class TestAutoInterception:
         replay_result = pytester.runpytest("--adbc-record=none", "-v")
         replay_result.assert_outcomes(passed=1)
 
+    def test_repeated_query_across_connections_replays_in_order(
+        self, pytester: pytest.Pytester
+    ) -> None:
+        """
+        A query a pooled test repeats on new connections replays each recording in turn.
+
+        count, insert, count over three connections: the second count must
+        replay its own recording (1), not the first count's (0).
+        """
+        pytester.makeini("[pytest]\nadbc_auto_patch = adbc_driver_sqlite.dbapi\n")
+        pytester.makepyfile(
+            """
+            import pytest
+            import adbc_driver_sqlite.dbapi as driver
+
+            def _query(sql):
+                conn = driver.connect(uri="pool.db")
+                cursor = conn.cursor()
+                cursor.execute(sql)
+                table = cursor.fetch_arrow_table()
+                conn.commit()
+                return table.column(0).to_pylist() if table.num_columns else []
+
+            @pytest.mark.adbc_cassette("pooled_repeat")
+            def test_count_insert_count():
+                _query("CREATE TABLE IF NOT EXISTS t (x INTEGER)")
+                assert _query("SELECT count(*) AS n FROM t") == [0]
+                _query("INSERT INTO t VALUES (1)")
+                assert _query("SELECT count(*) AS n FROM t") == [1]
+            """
+        )
+        record_result = pytester.runpytest("--adbc-record=once", "-v")
+        record_result.assert_outcomes(passed=1)
+        (pytester.path / "pool.db").unlink()
+
+        replay_result = pytester.runpytest("--adbc-record=none", "-v")
+        replay_result.assert_outcomes(passed=1)
+
     def test_once_decides_per_test(self, pytester: pytest.Pytester) -> None:
         """
         The 'once' record/replay decision is made per test, not per session.
