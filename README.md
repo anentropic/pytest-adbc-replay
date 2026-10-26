@@ -88,6 +88,7 @@ Commit the cassettes to version control — any changes appear as diffs in pull 
 | `adbc_dialect` | ini key (linelist) | `[]` | SQL dialect for normalisation. Bare value = global fallback, `driver: dialect` = per-driver. Empty = auto-detect. |
 | `adbc_auto_patch` | ini key (linelist) | `[]` | ADBC driver module names to auto-intercept |
 | `adbc_scrub_keys` | ini key (linelist) | `[]` | Parameter key names to redact from cassette `.json` files |
+| `adbc_scrub_result_keys` | ini key (linelist) | `[]` | Result column names and JSON keys to redact from cassette `.arrow` files |
 
 Minimal `pyproject.toml` snippet:
 
@@ -98,6 +99,7 @@ adbc_record_mode = "none"
 adbc_dialect = []  # e.g. ["adbc_driver_snowflake.dbapi: snowflake", "adbc_driver_duckdb.dbapi: duckdb"]
 adbc_auto_patch = []  # e.g. ["adbc_driver_duckdb.dbapi", "adbc_driver_snowflake.dbapi"]
 adbc_scrub_keys = []  # e.g. ["token password", "adbc_driver_snowflake: account_id"]
+adbc_scrub_result_keys = []  # e.g. ["owner created_time"]
 ```
 
 ## Record Modes
@@ -144,6 +146,14 @@ def adbc_scrubber():
 ```
 
 Config scrubbing runs first; the fixture callable receives the already-config-scrubbed params.
+
+Query results can hold personal data too, such as the owner's email in Databricks
+`DESCRIBE ... AS JSON` output. List column names or JSON keys in `adbc_scrub_result_keys` to
+redact them in the `.arrow` cassette file at record time:
+
+```toml
+adbc_scrub_result_keys = ["owner created_time created_by last_access"]
+```
 
 ## Advanced
 

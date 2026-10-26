@@ -90,7 +90,7 @@ def db_conn(adbc_replay, request):
 `.json` cassette file. It runs after config-based scrubbing (`adbc_scrub_keys`) has already been
 applied.
 
-See: [Scrub sensitive values from cassettes](how-to/scrub-sensitive-values/)
+See: [Scrub sensitive values from cassettes](../how-to/scrub-sensitive-values.md)
 
 **Signature:**
 
@@ -140,7 +140,7 @@ callable sees. Use config for simple key redaction and the fixture for anything 
 
 `adbc_param_serialisers` extends or replaces the JSON serialisation logic for parameter types not handled by the default encoder.
 
-See: [Register custom parameter serializers](how-to/custom-param-serializers/)
+See: [Register custom parameter serialisers](../how-to/custom-param-serialisers.md)
 
 **Override:**
 
