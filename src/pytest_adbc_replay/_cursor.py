@@ -209,6 +209,7 @@ class ReplayCursor:
                 for canonical_sql, table, params_raw in load_all_interactions(self._cassette_path):
                     key = self._make_key_from_canonical(canonical_sql, params_raw)
                     state.replay_queue[key].append(table)
+                    state.recorded_schemas.setdefault(key, table.schema)
             self._replay_queue = state.replay_queue
             self._record_index = count_interactions(self._cassette_path)
 
@@ -420,14 +421,20 @@ class ReplayCursor:
             self._ensure_initialised()
             canonical = normalise_sql(operation, self._dialect)
             key = self._make_key(canonical, parameters)
-            queue = self._replay_queue.get(key)
-            if queue:
-                # Peek the front entry's schema — do NOT popleft (peek-don't-pop).
-                return queue[0].schema
+            with self._cassette_state.write_lock:
+                queue = self._replay_queue.get(key)
+                if queue:
+                    # Peek the front entry's schema — do NOT popleft (peek-don't-pop).
+                    return queue[0].schema
             if self._executed and key == self._last_executed_key:
                 # This query was just executed; its single recording was already
                 # popped off the queue but its schema is still in _pending.
                 return self._pending.schema
+            recorded = self._cassette_state.recorded_schemas.get(key)
+            if recorded is not None:
+                # Recorded, but the test's other connections (which share the
+                # queue) already consumed every recording of it.
+                return recorded
             # No matching interaction — raise the same error _load_from_queue would.
             self._raise_cassette_miss(operation, canonical)
         if self._real_cursor is None:

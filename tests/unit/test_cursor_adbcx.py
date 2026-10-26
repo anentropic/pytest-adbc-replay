@@ -15,6 +15,7 @@ from pytest_adbc_replay._cassette_io import (
     write_params_json,
     write_sql_file,
 )
+from pytest_adbc_replay._connection import ReplayConnection
 from pytest_adbc_replay._cursor import ReplayCursor
 from pytest_adbc_replay._exceptions import CassetteMissError
 from pytest_adbc_replay._normaliser import normalise_sql
@@ -97,6 +98,25 @@ class TestAdbcExecuteSchema:
         cursor.execute("SELECT 1")
         assert cursor.fetchall() == [(1, "a"), (2, "b")]
         assert cursor.adbc_execute_schema("SELECT 1") == table.schema
+
+    def test_replay_schema_after_another_connection_consumed_recording(
+        self, tmp_path: Path
+    ) -> None:
+        # Replay queues are shared by a test's connections, so a pooled or cloned
+        # connection's execute() can drain a query's only recording. Another
+        # connection's adbc_execute_schema() for that recorded query must still
+        # answer, not raise CassetteMissError.
+        table = pa.table({"id": [1, 2], "name": ["a", "b"]})
+        cassette = tmp_path / "test"
+        _populate_cassette(cassette, "SELECT 1", table)
+        conn = ReplayConnection(
+            driver_module_name="adbc_driver_test", db_kwargs={}, mode="none", cassette_path=cassette
+        )
+        conn.cursor().execute("SELECT 1")
+        other = conn.adbc_clone().cursor()
+        assert other.adbc_execute_schema("SELECT 1") == table.schema
+        with pytest.raises(CassetteMissError):
+            other.adbc_execute_schema("SELECT 999")
 
     def test_replay_schema_for_different_query_after_execute_misses(self, tmp_path: Path) -> None:
         # The _pending fallback must be scoped to the just-executed query: a schema

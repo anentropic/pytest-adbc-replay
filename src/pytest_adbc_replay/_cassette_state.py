@@ -32,6 +32,9 @@ class CassetteState:
             query repeated across connections replays each recording in turn,
             as it was recorded, rather than every connection replaying the first.
             None until loaded.
+        recorded_schemas: Result schema of the first recording of each cassette
+            key, filled with replay_queue and never popped, so a schema lookup
+            still answers after another connection consumed the recordings.
         write_lock: Serialises cassette writes, the replay-queue load and pops so
             concurrent cursors never take the same interaction index or result.
     """
@@ -39,4 +42,5 @@ class CassetteState:
     wiped: bool = False
     once_replay: bool | None = None
     replay_queue: dict[tuple[str, str], deque[pa.Table]] | None = field(default=None, repr=False)
+    recorded_schemas: dict[tuple[str, str], pa.Schema] = field(default_factory=dict, repr=False)
     write_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
