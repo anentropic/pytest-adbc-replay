@@ -319,6 +319,46 @@ class TestAdbcConnectFixture:
         replay_result = pytester.runpytest("--adbc-record=none", "-v")
         replay_result.assert_outcomes(passed=1)
 
+    @pytest.mark.parametrize("record_mode", ["once", "all"])
+    def test_fixture_teardown_query_joins_the_tests_recording(
+        self, pytester: pytest.Pytester, record_mode: str
+    ) -> None:
+        """
+        A query run from a fixture's teardown records into the same cassette state.
+
+        The test's cassette state must outlive fixture teardown: released any
+        earlier, the teardown connection would re-wipe the cassette ('all') or
+        see the test's own recording and replay-miss ('once').
+        """
+        pytester.makepyfile(
+            """
+            import pytest
+
+            @pytest.fixture
+            def cleanup(adbc_connect):
+                yield
+                cursor = adbc_connect("adbc_driver_sqlite.dbapi").cursor()
+                cursor.execute("SELECT 2 AS cleanup")
+                assert cursor.fetch_arrow_table().column(0).to_pylist() == [2]
+
+            @pytest.mark.adbc_cassette("teardown")
+            def test_with_cleanup(cleanup, adbc_connect):
+                cursor = adbc_connect("adbc_driver_sqlite.dbapi").cursor()
+                cursor.execute("SELECT 1 AS body")
+                assert cursor.fetch_arrow_table().column(0).to_pylist() == [1]
+            """
+        )
+        record_result = pytester.runpytest(f"--adbc-record={record_mode}", "-v")
+        record_result.assert_outcomes(passed=1)
+
+        cassette = pytester.path / "tests" / "cassettes" / "teardown" / "adbc_driver_sqlite.dbapi"
+        assert sorted(p.name for p in cassette.glob("*_query.sql")) == [
+            "000_query.sql",
+            "001_query.sql",
+        ]
+        replay_result = pytester.runpytest("--adbc-record=none", "-v")
+        replay_result.assert_outcomes(passed=1)
+
     def test_adbc_connect_fixture_available(self, pytester: pytest.Pytester) -> None:
         """adbc_connect fixture is available without any conftest setup."""
         pytester.makepyfile(

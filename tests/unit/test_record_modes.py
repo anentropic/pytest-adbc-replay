@@ -262,6 +262,31 @@ class TestModeOnce:
 
         assert _recorded_sql(cassette) == ["SELECT 1", "SELECT 2"]
 
+    def test_recording_cursor_does_not_load_cassette(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        A cursor that will only record never reads the cassette back.
+
+        In a pool each query opens a new cursor; loading the cassette in each
+        would re-read every interaction recorded so far, and could read one
+        another thread is half-way through writing.
+        """
+        loads: list[Path] = []
+        real_load = load_all_interactions
+
+        def _counting_load(path: Path) -> list[tuple[str, pa.Table, object]]:
+            loads.append(path)
+            return real_load(path)
+
+        monkeypatch.setattr("pytest_adbc_replay._cursor.load_all_interactions", _counting_load)
+        for mode in ("once", "all"):
+            conn = _make_recording_connection(tmp_path / mode, mode)
+            for sql in ("SELECT 1", "SELECT 2", "SELECT 3"):
+                conn.cursor().execute(sql)
+            assert _recorded_sql(tmp_path / mode) == ["SELECT 1", "SELECT 2", "SELECT 3"]
+        assert loads == []
+
     def test_replays_every_query_from_existing_cassette(self, tmp_path: Path) -> None:
         """Once mode with a recorded cassette replays all queries, from any cursor."""
         cassette = tmp_path / "existing"
@@ -500,3 +525,16 @@ class TestSessionCassetteState:
         assert fresh is not state_a
         assert fresh.once_replay is None
         assert session.cassette_state("t.py::test_b", tmp_path / "c") is state_b
+
+    def test_no_test_gets_fresh_state_per_connection(self, tmp_path: Path) -> None:
+        """
+        A connection not tied to a test (wrap() without request) gets its own state.
+
+        Keyed state with no test to release it would last the whole session, so a
+        fixture calling wrap() without request would carry one test's 'once'
+        decision and 'all' wipe into every later test.
+        """
+        session = ReplaySession(mode="once", cassette_dir=tmp_path)
+        assert session.cassette_state(None, tmp_path / "c") is not session.cassette_state(
+            None, tmp_path / "c"
+        )

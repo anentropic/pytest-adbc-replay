@@ -195,8 +195,14 @@ class ReplayCursor:
             # later would see this test's own recordings and flip to replay.
             if self._mode == "once" and state.once_replay is None:
                 state.once_replay = cassette_has_interactions(self._cassette_path)
-        # Load existing cassette into replay queue (for none/once/new_episodes)
-        interactions = load_all_interactions(self._cassette_path)
+            # A cursor that only records never reads its replay queue, so skip
+            # re-reading every interaction recorded so far ('all', or a recording
+            # 'once' test).
+            if self._mode == "all" or (self._mode == "once" and not state.once_replay):
+                return
+            # Load existing cassette into replay queue (for none/once/new_episodes),
+            # under the lock so a concurrent recording is never read half-written.
+            interactions = load_all_interactions(self._cassette_path)
         for canonical_sql, table, params_raw in interactions:
             key = self._make_key_from_canonical(canonical_sql, params_raw)
             self._replay_queue[key].append(table)

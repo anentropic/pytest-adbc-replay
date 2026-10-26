@@ -357,6 +357,9 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
         _auto_patch_state["current_item"] = item
 
 
+# trylast: run after _pytest.runner's teardown, which runs fixture finalizers, so a
+# fixture's teardown still records into (and is intercepted for) this test's cassette.
+@pytest.hookimpl(trylast=True)
 def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> None:  # noqa: ARG001
     """Clear current item and close all connections opened during this test."""
     with _ITEM_LOCK:

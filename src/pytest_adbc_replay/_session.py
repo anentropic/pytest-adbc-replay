@@ -53,7 +53,7 @@ class ReplaySession:
         # Cassette state per (test node ID, cassette path), so every connection a
         # test opens on one cassette shares a single record/replay decision and
         # interaction index sequence. Released when the test ends.
-        self._cassette_states: dict[tuple[str | None, Path], CassetteState] = {}
+        self._cassette_states: dict[tuple[str, Path], CassetteState] = {}
 
     def cassette_state(self, nodeid: str | None, cassette_path: Path) -> CassetteState:
         """
@@ -66,8 +66,11 @@ class ReplaySession:
 
         Returns:
             The same CassetteState for every call with the same arguments, until
-            release_test() is called for ``nodeid``.
+            release_test() is called for ``nodeid``. With ``nodeid`` None, a new
+            CassetteState on every call: no test teardown would ever release it.
         """
+        if nodeid is None:
+            return CassetteState()
         return self._cassette_states.setdefault((nodeid, cassette_path), CassetteState())
 
     def release_test(self, nodeid: str) -> None:
