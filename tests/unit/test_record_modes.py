@@ -11,10 +11,12 @@ import pytest
 from pytest_adbc_replay._cassette_io import (
     cassette_has_interactions,
     interaction_file_paths,
+    load_all_interactions,
     write_arrow_table,
     write_params_json,
     write_sql_file,
 )
+from pytest_adbc_replay._connection import ReplayConnection
 from pytest_adbc_replay._cursor import ReplayCursor
 from pytest_adbc_replay._exceptions import CassetteMissError
 from pytest_adbc_replay._normaliser import normalise_sql
@@ -40,6 +42,41 @@ def _make_mock_cursor(result_table: pa.Table) -> MagicMock:
     mock = MagicMock()
     mock.fetch_arrow_table.return_value = result_table
     return mock
+
+
+def _make_recording_connection(cassette: Path, mode: str) -> ReplayConnection:
+    """
+    Create a record-mode ReplayConnection whose real cursors echo the SQL they ran.
+
+    Each real cursor returns a one-row table holding the SQL it executed, so a test
+    can tell from the recorded result which query produced it.
+    """
+    conn = ReplayConnection(
+        driver_module_name="adbc_driver_test",
+        db_kwargs={},
+        mode="none",  # avoid a real driver import
+        cassette_path=cassette,
+    )
+    conn._mode = mode
+
+    def _make_real_cursor() -> MagicMock:
+        real = MagicMock()
+
+        def _execute(sql: str, *_args: object, **_kwargs: object) -> None:
+            real.fetch_arrow_table.return_value = pa.table({"sql": [sql]})
+
+        real.execute.side_effect = _execute
+        return real
+
+    real_conn = MagicMock()
+    real_conn.cursor.side_effect = _make_real_cursor
+    conn._real_conn = real_conn
+    return conn
+
+
+def _recorded_sql(cassette: Path) -> list[str]:
+    """Return the result 'sql' value of every recorded interaction, in index order."""
+    return [table.column("sql")[0].as_py() for _, table, _ in load_all_interactions(cassette)]
 
 
 class TestModeNone:
@@ -165,6 +202,89 @@ class TestModeOnce:
         result = c.fetch_arrow_table()
         assert result.column("value").to_pylist() == [10, 20]
 
+    def test_records_every_query_on_one_cursor(self, tmp_path: Path) -> None:
+        """
+        Once mode keeps recording after the first query of a fresh recording.
+
+        Regression: the record/replay decision was re-made on every execute() from
+        whether the cassette had interactions, so the first recorded query flipped
+        the rest of the test to replay and the second query raised CassetteMissError.
+        """
+        cassette = tmp_path / "new"
+        conn = _make_recording_connection(cassette, "once")
+        c = conn.cursor()
+
+        c.execute("SELECT a FROM t")
+        assert c.fetch_arrow_table().column("sql").to_pylist() == ["SELECT a FROM t"]
+        c.execute("SELECT b FROM t")
+        assert c.fetch_arrow_table().column("sql").to_pylist() == ["SELECT b FROM t"]
+        c.execute("SELECT a FROM t")  # repeated SQL is recorded again, not replayed
+        assert c.fetch_arrow_table().column("sql").to_pylist() == ["SELECT a FROM t"]
+
+        assert _recorded_sql(cassette) == ["SELECT a FROM t", "SELECT b FROM t", "SELECT a FROM t"]
+
+        # The recording replays in full.
+        replay = ReplayCursor(real_cursor=None, mode="none", cassette_path=cassette)
+        for sql in ("SELECT a FROM t", "SELECT b FROM t", "SELECT a FROM t"):
+            replay.execute(sql)
+            assert replay.fetch_arrow_table().column("sql").to_pylist() == [sql]
+
+    def test_records_queries_from_interleaved_cursors(self, tmp_path: Path) -> None:
+        """
+        Once mode records every query from several cursors without overwriting any.
+
+        Covers a later cursor starting after the first query was recorded (it must
+        still record) and an earlier cursor writing again after a later one wrote
+        (it must not reuse an interaction index the other cursor already took).
+        """
+        cassette = tmp_path / "new"
+        conn = _make_recording_connection(cassette, "once")
+        first = conn.cursor()
+        second = conn.cursor()
+
+        first.execute("SELECT 1")
+        second.execute("SELECT 2")
+        assert second.fetch_arrow_table().column("sql").to_pylist() == ["SELECT 2"]
+        first.execute("SELECT 3")
+
+        assert _recorded_sql(cassette) == ["SELECT 1", "SELECT 2", "SELECT 3"]
+
+    def test_records_queries_from_a_clone(self, tmp_path: Path) -> None:
+        """Once mode keeps recording when a cloned connection queries after the source."""
+        cassette = tmp_path / "new"
+        conn = _make_recording_connection(cassette, "once")
+        clone = conn.adbc_clone()
+        clone._real_conn = conn._real_conn
+
+        conn.cursor().execute("SELECT 1")
+        clone.cursor().execute("SELECT 2")
+
+        assert _recorded_sql(cassette) == ["SELECT 1", "SELECT 2"]
+
+    def test_replays_every_query_from_existing_cassette(self, tmp_path: Path) -> None:
+        """Once mode with a recorded cassette replays all queries, from any cursor."""
+        cassette = tmp_path / "existing"
+        _populate_cassette(
+            cassette,
+            [(normalise_sql("SELECT a FROM t"), [1]), (normalise_sql("SELECT b FROM t"), [2])],
+        )
+        conn = _make_recording_connection(cassette, "once")
+        first = conn.cursor()
+        second = conn.cursor()
+
+        first.execute("SELECT a FROM t")
+        assert first.fetch_arrow_table().column("value").to_pylist() == [1]
+        second.execute("SELECT b FROM t")
+        assert second.fetch_arrow_table().column("value").to_pylist() == [2]
+
+        for real in (first._real_cursor, second._real_cursor):
+            real.execute.assert_not_called()
+        # A query missing from a recorded cassette is still a miss, never a recording.
+        with pytest.raises(CassetteMissError):
+            first.execute("SELECT c FROM t")
+        first._real_cursor.execute.assert_not_called()
+        assert len(load_all_interactions(cassette)) == 2
+
 
 class TestModeNewEpisodes:
     """MODE-03: new_episodes replays existing; records new interactions."""
@@ -272,6 +392,25 @@ class TestModeAll:
 
         assert cassette.exists()
         assert cassette_has_interactions(cassette)
+
+    def test_interleaved_cursors_do_not_overwrite(self, tmp_path: Path) -> None:
+        """
+        All mode records every query from several cursors without overwriting any.
+
+        Regression: each cursor kept its own interaction index, so a second cursor
+        started at index 0 and overwrote the first cursor's recording.
+        """
+        cassette = tmp_path / "existing"
+        _populate_cassette(cassette, [(normalise_sql("SELECT old"), [0])])
+        conn = _make_recording_connection(cassette, "all")
+        first = conn.cursor()
+        second = conn.cursor()
+
+        first.execute("SELECT 1")
+        second.execute("SELECT 2")
+        first.execute("SELECT 3")
+
+        assert _recorded_sql(cassette) == ["SELECT 1", "SELECT 2", "SELECT 3"]
 
 
 class TestOrderedQueueReplay:

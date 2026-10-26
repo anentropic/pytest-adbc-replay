@@ -11,10 +11,7 @@ Covers:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import pytest
+import pytest
 
 
 class TestAutoPatchIniKey:
@@ -81,6 +78,55 @@ class TestAutoInterception:
 
         # Run 2: replay without DB
         replay_result = pytester.runpytest("-v")
+        replay_result.assert_outcomes(passed=1)
+
+    @pytest.mark.parametrize("record_mode", ["once", "all"])
+    def test_records_queries_from_several_connections(
+        self, pytester: pytest.Pytester, record_mode: str
+    ) -> None:
+        """
+        A test that queries over several connections and cursors records every query.
+
+        Mirrors a connection pool: each query opens its own connection. Regression:
+        in 'once' mode the first recorded query made later connections replay (and
+        miss); in 'all' mode each connection wiped the cassette and re-used index 0.
+        """
+        pytester.makeini("[pytest]\nadbc_auto_patch = adbc_driver_sqlite.dbapi\n")
+        pytester.makepyfile(
+            """
+            import pytest
+            import adbc_driver_sqlite.dbapi as driver
+
+            def _query(sql):
+                conn = driver.connect()
+                cursor = conn.cursor()
+                cursor.execute(sql)
+                return cursor.fetch_arrow_table().column(0).to_pylist()
+
+            @pytest.mark.adbc_cassette("pooled")
+            def test_pooled_queries():
+                assert _query("SELECT 1 AS a") == [1]
+                assert _query("SELECT 2 AS b") == [2]
+                conn = driver.connect()
+                cursor = conn.cursor()
+                cursor.execute("SELECT 3 AS c")
+                assert cursor.fetch_arrow_table().column(0).to_pylist() == [3]
+                cursor.execute("SELECT 4 AS d")
+                assert cursor.fetch_arrow_table().column(0).to_pylist() == [4]
+            """
+        )
+        record_result = pytester.runpytest(f"--adbc-record={record_mode}", "-v")
+        record_result.assert_outcomes(passed=1)
+
+        cassette = pytester.path / "tests" / "cassettes" / "pooled" / "adbc_driver_sqlite.dbapi"
+        assert sorted(p.name for p in cassette.glob("*_query.sql")) == [
+            "000_query.sql",
+            "001_query.sql",
+            "002_query.sql",
+            "003_query.sql",
+        ]
+
+        replay_result = pytester.runpytest("--adbc-record=none", "-v")
         replay_result.assert_outcomes(passed=1)
 
     def test_unmarked_test_passes_through_to_real_driver(self, pytester: pytest.Pytester) -> None:
