@@ -104,6 +104,18 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=[],
     )
     parser.addini(
+        "adbc_scrub_result_keys",
+        help=(
+            "Lines of result column names / JSON keys to auto-redact from recorded "
+            "cassette .arrow files. Same global and per-driver forms as adbc_scrub_keys. "
+            "A matching string column has every value replaced with 'REDACTED'; in other "
+            "string cells holding JSON, matching keys at any depth get the value 'REDACTED' "
+            "(e.g. 'owner' in Databricks DESCRIBE ... AS JSON output)."
+        ),
+        type="linelist",
+        default=[],
+    )
+    parser.addini(
         "adbc_cassette_differentiator_keys",
         help=(
             "db_kwargs key names whose values are appended as extra cassette path "
@@ -234,6 +246,9 @@ def _build_session_from_config(config: pytest.Config) -> ReplaySession:
     raw_scrub_keys: list[str] = cast("list[str]", config.getini("adbc_scrub_keys")) or []
     global_keys, per_driver_keys = _parse_scrub_keys(raw_scrub_keys)
 
+    raw_result_keys: list[str] = cast("list[str]", config.getini("adbc_scrub_result_keys")) or []
+    global_result_keys, per_driver_result_keys = _parse_scrub_keys(raw_result_keys)
+
     raw_diff_keys: list[str] = (
         cast("list[str]", config.getini("adbc_cassette_differentiator_keys")) or []
     )
@@ -248,6 +263,8 @@ def _build_session_from_config(config: pytest.Config) -> ReplaySession:
         dialect_per_driver=dialect_per_driver,
         scrub_keys_global=global_keys,
         scrub_keys_per_driver=per_driver_keys,
+        scrub_result_keys_global=global_result_keys,
+        scrub_result_keys_per_driver=per_driver_result_keys,
         differentiator_keys_default=differentiator_keys,
     )
 
@@ -463,6 +480,11 @@ def adbc_replay(
     raw_scrub_keys: list[str] = cast("list[str]", request.config.getini("adbc_scrub_keys")) or []
     global_keys, per_driver_keys = _parse_scrub_keys(raw_scrub_keys)
 
+    raw_result_keys: list[str] = (
+        cast("list[str]", request.config.getini("adbc_scrub_result_keys")) or []
+    )
+    global_result_keys, per_driver_result_keys = _parse_scrub_keys(raw_result_keys)
+
     raw_diff_keys: list[str] = (
         cast("list[str]", request.config.getini("adbc_cassette_differentiator_keys")) or []
     )
@@ -477,6 +499,8 @@ def adbc_replay(
         dialect_per_driver=dialect_per_driver,
         scrub_keys_global=global_keys,
         scrub_keys_per_driver=per_driver_keys,
+        scrub_result_keys_global=global_result_keys,
+        scrub_result_keys_per_driver=per_driver_result_keys,
         differentiator_keys_default=differentiator_keys,
     )
     # Overwrite the eagerly-initialized session_state (set in pytest_sessionstart)

@@ -5,7 +5,9 @@ Cassettes are committed to version control. If your tests pass sensitive values 
 to the `.json` cassette file.
 
 Two approaches are available: config-based key redaction via `adbc_scrub_keys`, and a fixture
-callable for custom scrubbing logic.
+callable for custom scrubbing logic. Query results can hold sensitive values too, such as the owner's
+email address in Databricks `DESCRIBE ... AS JSON` output. To redact those, see
+[Scrub values in query results](#scrub-values-in-query-results).
 
 ## Automatic scrubbing with `adbc_scrub_keys`
 
@@ -73,13 +75,41 @@ Config-based scrubbing (`adbc_scrub_keys`) always runs first. The fixture callab
 the already-config-scrubbed params. Use config for simple key redaction and the fixture for
 everything else.
 
-## Scope
+## Scrub values in query results
 
-Scrubbing applies to params only — the values passed to `execute()`. The Arrow result table stored
-in `.arrow` files is not touched. If your query results contain sensitive data, use test data that
-does not include real credentials.
+`adbc_scrub_keys` and `adbc_scrubber` only see params, the values passed to `execute()`. To redact
+values in the result tables stored in `.arrow` files, list column names or JSON keys under
+`adbc_scrub_result_keys`:
+
+```toml
+[tool.pytest.ini_options]
+adbc_scrub_result_keys = [
+    "owner created_by created_time last_access",
+]
+```
+
+It uses the same global and per-driver line forms as `adbc_scrub_keys`. At record time, before the
+result is written, the plugin:
+
+- replaces every non-null value of a string column whose name is listed with `REDACTED`
+- in any other string cell that holds a JSON object or array, replaces the value of each listed key
+  with `REDACTED`, at any depth
+
+The second rule covers drivers that return metadata as a JSON document in one string column. For
+example, Databricks `DESCRIBE TABLE EXTENDED ... AS JSON` returns the view owner's email in an
+`owner` field. A JSON cell that changed is re-serialised compactly, with its key order kept. Cells
+that hold no listed key stay byte-for-byte the same.
+
+Matching is exact and case-sensitive. Columns that aren't strings are left unchanged, and so are
+strings nested inside struct or list columns.
+
+The recording run gets the scrubbed table too, so a test sees the same rows when it records as when
+it replays. If a test asserts on a value you scrub, it fails while recording, not later in CI.
+
+Scrubbing changes only what is written from then on. To clean cassettes you recorded earlier,
+re-record them with `--adbc-record=all`. Copies already committed stay in your git history.
 
 ## See also
 
 - [`adbc_scrubber` fixture reference](../reference/fixtures.md) — signature, scope, return values
-- [`adbc_scrub_keys` configuration reference](../reference/configuration.md) — ini key syntax
+- [`adbc_scrub_keys` and `adbc_scrub_result_keys` configuration reference](../reference/configuration.md) — ini key syntax

@@ -182,3 +182,122 @@ class TestNormFourPlaceholders:
         result = normalise_sql("SELECT * FROM t WHERE id = :id")
         # Named placeholder should survive
         assert ":id" in result or "id" in result
+
+
+class TestNormFiveLossless:
+    """
+    NORM-05: Normalisation never drops part of a statement.
+
+    The generic sqlglot generator renders ``DESCRIBE`` without its object kind
+    and renders ``SHOW`` as an empty string, so distinct statements used to
+    share a cassette key. Each case below names the statement it must keep.
+    """
+
+    def test_snowflake_describe_semantic_view_keeps_kind(self) -> None:
+        """DESCRIBE SEMANTIC VIEW x is not recorded as DESCRIBE x."""
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        result = normalise_sql("describe semantic view db.sch.sales", dialect="snowflake")
+        assert result == "DESCRIBE SEMANTIC VIEW db.sch.sales"
+
+    def test_snowflake_describe_kinds_get_distinct_keys(self) -> None:
+        """DESCRIBE TABLE, DESCRIBE VIEW and DESCRIBE SEMANTIC VIEW of one name differ."""
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        keys = {
+            normalise_sql(f"DESCRIBE {kind} sales", dialect="snowflake")
+            for kind in ("TABLE", "VIEW", "SEMANTIC VIEW")
+        }
+        assert len(keys) == 3
+
+    def test_generic_dialect_describe_keeps_kind(self) -> None:
+        """
+        Without a dialect, DESCRIBE VIEW is not recorded as DESCRIBE x.
+
+        No generator keeps the kind, so this takes the whitespace fallback and warns.
+        """
+        from pytest_adbc_replay._normaliser import NormalisationWarning, normalise_sql
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            view_key = normalise_sql("DESCRIBE VIEW sales")
+        assert view_key == "DESCRIBE VIEW sales"
+        assert [w.category for w in caught] == [NormalisationWarning]
+
+    def test_unsupported_construct_keeps_existing_key(self) -> None:
+        """
+        A non-empty generic rendering is kept even if sqlglot logs part of it as unsupported.
+
+        The generic generator drops FOR UPDATE. That predates NORM-05, so the key
+        stays as it was rather than moving to the dialect rendering or the fallback.
+        """
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert normalise_sql("SELECT * FROM t FOR UPDATE", dialect="postgres") == (
+                "SELECT\n  *\nFROM t"
+            )
+            assert normalise_sql("SELECT * FROM t FOR UPDATE") == "SELECT\n  *\nFROM t"
+
+    def test_describe_table_keeps_existing_key(self) -> None:
+        """TABLE is DESCRIBE's default kind, so DESCRIBE TABLE x keeps the key DESCRIBE x."""
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # no fallback warning either
+            assert normalise_sql("DESCRIBE TABLE sales") == "DESCRIBE sales"
+            assert normalise_sql("DESCRIBE TABLE sales", dialect="snowflake") == "DESCRIBE sales"
+            assert (
+                normalise_sql("DESCRIBE TABLE EXTENDED `sales` AS JSON", dialect="databricks")
+                == 'DESCRIBE EXTENDED "sales" AS JSON'
+            )
+
+    def test_snowflake_show_columns_not_empty(self) -> None:
+        """SHOW COLUMNS IN VIEW x is not recorded as an empty string."""
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        result = normalise_sql("show columns in view db.sch.sales", dialect="snowflake")
+        assert result == "SHOW COLUMNS IN VIEW db.sch.sales"
+
+    def test_snowflake_show_statements_get_distinct_keys(self) -> None:
+        """Different SHOW statements no longer collapse onto one key."""
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        statements = [
+            "SHOW TABLES",
+            "SHOW COLUMNS IN VIEW sales",
+            "SHOW COLUMNS IN TABLE orders",
+            "SHOW TERSE VIEWS LIKE '%a%' IN SCHEMA db.sch",
+        ]
+        keys = [normalise_sql(s, dialect="snowflake") for s in statements]
+        assert all(keys), keys
+        assert len(set(keys)) == len(statements), keys
+
+    def test_snowflake_show_is_idempotent(self) -> None:
+        """A recorded SHOW key normalises back to itself."""
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        once = normalise_sql("show columns in view sales", dialect="snowflake")
+        assert once == "SHOW COLUMNS IN VIEW sales"
+        assert normalise_sql(once, dialect="snowflake") == once
+
+    def test_select_keys_unchanged(self) -> None:
+        """Statements the generic generator renders fully keep their existing keys."""
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        # Snowflake DATE_TRUNC renders in the generic dialect as TIMESTAMP_TRUNC.
+        # Cassettes recorded before NORM-05 are keyed on that generic form, so
+        # it must not switch to Snowflake's own rendering.
+        result = normalise_sql(
+            'SELECT DATE_TRUNC(\'second\', "ORDERED_AT") FROM "ORDERS_VIEW"',
+            dialect="snowflake",
+        )
+        assert result == 'SELECT\n  TIMESTAMP_TRUNC("ORDERED_AT", SECOND)\nFROM "ORDERS_VIEW"'
+
+    def test_databricks_describe_extended_unchanged(self) -> None:
+        """DESCRIBE EXTENDED ... AS JSON (no object kind) keeps its existing key."""
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        result = normalise_sql('DESCRIBE EXTENDED "sales_view" AS JSON', dialect="databricks")
+        assert result == 'DESCRIBE EXTENDED "sales_view" AS JSON'

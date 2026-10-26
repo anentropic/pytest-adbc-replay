@@ -34,6 +34,8 @@ class ReplaySession:
         dialect_per_driver: dict[str, str] | None = None,
         scrub_keys_global: list[str] | None = None,
         scrub_keys_per_driver: dict[str, list[str]] | None = None,
+        scrub_result_keys_global: list[str] | None = None,
+        scrub_result_keys_per_driver: dict[str, list[str]] | None = None,
         differentiator_keys_default: tuple[str, ...] = ("driver",),
     ) -> None:
         self.mode = mode
@@ -44,6 +46,8 @@ class ReplaySession:
         self.dialect_per_driver: dict[str, str] = dialect_per_driver or {}
         self.scrub_keys_global: list[str] = scrub_keys_global or []
         self.scrub_keys_per_driver: dict[str, list[str]] = scrub_keys_per_driver or {}
+        self.scrub_result_keys_global: list[str] = scrub_result_keys_global or []
+        self.scrub_result_keys_per_driver: dict[str, list[str]] = scrub_result_keys_per_driver or {}
         self.differentiator_keys_default = differentiator_keys_default
 
     def _extract_differentiator_segments(
@@ -154,6 +158,8 @@ class ReplaySession:
             param_serialisers=resolved_serialisers,
             scrub_keys_global=self.scrub_keys_global,
             scrub_keys_per_driver=self.scrub_keys_per_driver,
+            scrub_result_keys_global=self.scrub_result_keys_global,
+            scrub_result_keys_per_driver=self.scrub_result_keys_per_driver,
             scrubber=self.scrubber,
         )
 
@@ -250,5 +256,7 @@ class ReplaySession:
             conn_args=conn_args,
             scrub_keys_global=self.scrub_keys_global,
             scrub_keys_per_driver=self.scrub_keys_per_driver,
+            scrub_result_keys_global=self.scrub_result_keys_global,
+            scrub_result_keys_per_driver=self.scrub_result_keys_per_driver,
             scrubber=self.scrubber,
         )
