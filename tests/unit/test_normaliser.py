@@ -211,15 +211,26 @@ class TestNormFiveLossless:
         assert len(keys) == 3
 
     def test_generic_dialect_describe_keeps_kind(self) -> None:
-        """Without a dialect, DESCRIBE TABLE and DESCRIBE VIEW still differ."""
+        """Without a dialect, DESCRIBE VIEW is not recorded as DESCRIBE x."""
         from pytest_adbc_replay._normaliser import normalise_sql
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            table_key = normalise_sql("DESCRIBE TABLE sales")
             view_key = normalise_sql("DESCRIBE VIEW sales")
-        assert table_key == "DESCRIBE TABLE sales"
         assert view_key == "DESCRIBE VIEW sales"
+
+    def test_describe_table_keeps_existing_key(self) -> None:
+        """TABLE is DESCRIBE's default kind, so DESCRIBE TABLE x keeps the key DESCRIBE x."""
+        from pytest_adbc_replay._normaliser import normalise_sql
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # no fallback warning either
+            assert normalise_sql("DESCRIBE TABLE sales") == "DESCRIBE sales"
+            assert normalise_sql("DESCRIBE TABLE sales", dialect="snowflake") == "DESCRIBE sales"
+            assert (
+                normalise_sql("DESCRIBE TABLE EXTENDED `sales` AS JSON", dialect="databricks")
+                == 'DESCRIBE EXTENDED "sales" AS JSON'
+            )
 
     def test_snowflake_show_columns_not_empty(self) -> None:
         """SHOW COLUMNS IN VIEW x is not recorded as an empty string."""
@@ -258,7 +269,7 @@ class TestNormFiveLossless:
         # Cassettes recorded before NORM-05 are keyed on that generic form, so
         # it must not switch to Snowflake's own rendering.
         result = normalise_sql(
-            "SELECT DATE_TRUNC('second', \"ORDERED_AT\") FROM \"ORDERS_VIEW\"",
+            'SELECT DATE_TRUNC(\'second\', "ORDERED_AT") FROM "ORDERS_VIEW"',
             dialect="snowflake",
         )
         assert result == 'SELECT\n  TIMESTAMP_TRUNC("ORDERED_AT", SECOND)\nFROM "ORDERS_VIEW"'
