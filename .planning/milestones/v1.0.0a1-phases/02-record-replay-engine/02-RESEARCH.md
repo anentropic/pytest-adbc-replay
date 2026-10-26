@@ -41,7 +41,6 @@ Three technical domains must be implemented:
 @pytest.fixture(scope="session")
 def adbc_param_serialisers():
     from myapp.models import Money
-
     return {
         Money: {
             "serialise": lambda m: {"currency": m.currency, "amount": str(m.amount)},
@@ -209,7 +208,6 @@ def normalise_sql(sql: str, dialect: str | None = None) -> str:
 # src/pytest_adbc_replay/_cassette_io.py — Arrow IPC patterns
 import pyarrow as pa
 
-
 def write_arrow_table(table: pa.Table, path: Path) -> None:
     """Write a pyarrow.Table to an Arrow IPC file."""
     with pa.ipc.new_file(str(path), table.schema) as writer:
@@ -276,9 +274,7 @@ _BUILTIN_SERIALISERS: dict[type, dict[str, Any]] = {
 NO_DEFAULT_SERIALISERS: dict[type, dict[str, Any]] = {}
 
 
-def build_registry(
-    user_serialisers: dict[type, dict[str, Any]] | None,
-) -> dict[type, dict[str, Any]]:
+def build_registry(user_serialisers: dict[type, dict[str, Any]] | None) -> dict[type, dict[str, Any]]:
     """Merge built-ins with user-provided serialisers. User entries override built-ins."""
     if user_serialisers is None:
         return _BUILTIN_SERIALISERS.copy()
@@ -416,7 +412,6 @@ def _ensure_initialised(self) -> None:
     if self._mode in ("none", "once", "new_episodes"):
         self._load_cassette_interactions()
 
-
 def _load_cassette_interactions(self) -> None:
     """Pre-populate replay queue from existing cassette files."""
     if not self._cassette_path.exists():
@@ -428,9 +423,7 @@ def _load_cassette_interactions(self) -> None:
         arrow_file = self._cassette_path / f"{prefix}_result.arrow"
         params_file = self._cassette_path / f"{prefix}_params.json"
         canonical_sql = sql_file.read_text(encoding="utf-8").strip()
-        params_raw = (
-            json.loads(params_file.read_text(encoding="utf-8")) if params_file.exists() else None
-        )
+        params_raw = json.loads(params_file.read_text(encoding="utf-8")) if params_file.exists() else None
         key = self._make_key_from_canonical(canonical_sql, params_raw)
         table = read_arrow_table(arrow_file)
         self._replay_queue[key].append(table)
@@ -541,7 +534,6 @@ def _cassette_has_interactions(self) -> bool:
 # Source: https://arrow.apache.org/docs/python/ipc.html + https://arrow.apache.org/docs/python/generated/pyarrow.ipc.RecordBatchFileWriter.html
 
 import pyarrow as pa
-
 
 def write_arrow_table(table: pa.Table, path: str | Path) -> None:
     """Write table to Arrow IPC file format."""

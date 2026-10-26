@@ -34,7 +34,6 @@ Wire the Phase 1 `ReplayCursor`/`ReplayConnection` stubs to real cassette storag
 @pytest.fixture(scope="session")
 def adbc_param_serialisers():
     from myapp.models import Money
-
     return {
         Money: {
             "serialise": lambda m: {"currency": m.currency, "amount": str(m.amount)},

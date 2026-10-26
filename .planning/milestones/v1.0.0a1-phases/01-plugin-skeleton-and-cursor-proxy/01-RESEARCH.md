@@ -146,7 +146,6 @@ Source: https://docs.pytest.org/en/stable/how-to/writing_plugins.html
 # src/pytest_adbc_replay/plugin.py
 import pytest
 
-
 def pytest_addoption(parser: pytest.Parser) -> None:
     group = parser.getgroup("adbc-replay")
     group.addoption(
@@ -157,13 +156,11 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="ADBC cassette record mode (default: none = replay only)",
     )
 
-
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
         "adbc_cassette(name, dialect=None): override cassette name and SQL dialect for this test",
     )
-
 
 @pytest.fixture(scope="session")
 def adbc_replay(request: pytest.FixtureRequest) -> "ReplaySession":
@@ -204,7 +201,6 @@ class ReplaySession:
 import re
 from pathlib import Path
 
-
 def node_id_to_cassette_path(node_id: str, cassette_dir: Path) -> Path:
     # "tests/foo/test_bar.py::TestClass::test_method" → "cassettes/foo/test_bar/TestClass/test_method"
     # Strip leading "tests/" if present
@@ -214,11 +210,9 @@ def node_id_to_cassette_path(node_id: str, cassette_dir: Path) -> Path:
     # First part is module path — strip .py and convert / to sub-paths
     module = parts[0].removesuffix(".py")
     rest = parts[1:]
-
     # Slugify each segment: replace non-alphanumeric (except _) with _
     def slugify(s: str) -> str:
         return re.sub(r"[^\w]", "_", s)
-
     segments = [slugify(p) for p in module.split("/")] + [slugify(p) for p in rest]
     return cassette_dir.joinpath(*segments)
 ```
@@ -364,9 +358,7 @@ def adbc_connection(adbc_replay, request):
     marker = request.node.get_closest_marker("adbc_cassette")
     name = marker.args[0] if marker and marker.args else None
     dialect = marker.kwargs.get("dialect") if marker else None
-    return adbc_replay.wrap(
-        "adbc_driver_snowflake", db_kwargs={...}, cassette_name=name, dialect=dialect
-    )
+    return adbc_replay.wrap("adbc_driver_snowflake", db_kwargs={...}, cassette_name=name, dialect=dialect)
 ```
 
 ### ReplayCursor Context Manager

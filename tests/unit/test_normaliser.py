@@ -211,13 +211,34 @@ class TestNormFiveLossless:
         assert len(keys) == 3
 
     def test_generic_dialect_describe_keeps_kind(self) -> None:
-        """Without a dialect, DESCRIBE VIEW is not recorded as DESCRIBE x."""
+        """
+        Without a dialect, DESCRIBE VIEW is not recorded as DESCRIBE x.
+
+        No generator keeps the kind, so this takes the whitespace fallback and warns.
+        """
+        from pytest_adbc_replay._normaliser import NormalisationWarning, normalise_sql
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            view_key = normalise_sql("DESCRIBE VIEW sales")
+        assert view_key == "DESCRIBE VIEW sales"
+        assert [w.category for w in caught] == [NormalisationWarning]
+
+    def test_unsupported_construct_keeps_existing_key(self) -> None:
+        """
+        A non-empty generic rendering is kept even if sqlglot logs part of it as unsupported.
+
+        The generic generator drops FOR UPDATE. That predates NORM-05, so the key
+        stays as it was rather than moving to the dialect rendering or the fallback.
+        """
         from pytest_adbc_replay._normaliser import normalise_sql
 
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            view_key = normalise_sql("DESCRIBE VIEW sales")
-        assert view_key == "DESCRIBE VIEW sales"
+            warnings.simplefilter("error")
+            assert normalise_sql("SELECT * FROM t FOR UPDATE", dialect="postgres") == (
+                "SELECT\n  *\nFROM t"
+            )
+            assert normalise_sql("SELECT * FROM t FOR UPDATE") == "SELECT\n  *\nFROM t"
 
     def test_describe_table_keeps_existing_key(self) -> None:
         """TABLE is DESCRIBE's default kind, so DESCRIBE TABLE x keeps the key DESCRIBE x."""

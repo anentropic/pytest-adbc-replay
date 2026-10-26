@@ -134,7 +134,6 @@ adbc_replay = "pytest_adbc_replay.plugin"
 ```python
 import pytest
 
-
 def pytest_addoption(parser):
     group = parser.getgroup("adbc_replay", "ADBC record/replay")
     group.addoption(
@@ -147,13 +146,11 @@ def pytest_addoption(parser):
     parser.addini("adbc_record_mode", default="none", help="...")
     parser.addini("adbc_dialect", default=None, help="...")
 
-
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
         "adbc_cassette(name, dialect=None): name the cassette and set SQL dialect",
     )
-
 
 @pytest.fixture(scope="session")
 def adbc_replay(request):

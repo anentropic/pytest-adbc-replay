@@ -112,6 +112,28 @@ class TestScrubResultTable:
         assert scrubbed.column("owner").to_pylist() == ["REDACTED", "REDACTED"]
         assert scrubbed.column("j").to_pylist() == ["a@x.com", '{"owner":"REDACTED"}']
 
+    def test_dictionary_string_column_redacted(self) -> None:
+        """A dictionary-encoded string column is scrubbed and keeps its type."""
+        dict_type = pa.dictionary(pa.int32(), pa.string())
+        owner = pa.array(["a@x.com", None, "a@x.com"]).dictionary_encode().cast(dict_type)
+        meta = pa.array(['{"owner":"a@x.com"}', "plain"]).dictionary_encode().cast(dict_type)
+        table = pa.table({"owner": owner, "meta": pa.concat_arrays([meta, meta[:1]])})
+        scrubbed = scrub_result_table(table, frozenset({"owner"}))
+        assert scrubbed.column("owner").to_pylist() == ["REDACTED", None, "REDACTED"]
+        assert scrubbed.column("meta").to_pylist() == [
+            '{"owner":"REDACTED"}',
+            "plain",
+            '{"owner":"REDACTED"}',
+        ]
+        assert scrubbed.schema.equals(table.schema, check_metadata=True)
+
+    def test_lone_surrogate_in_json_does_not_crash(self) -> None:
+        """A JSON \\ud800 escape survives scrubbing instead of failing the UTF-8 encode."""
+        table = pa.table({"j": ['{"owner":"a@x.com","note":"\\ud800"}']})
+        scrubbed = scrub_result_table(table, frozenset({"owner"}))
+        text = scrubbed.column("j")[0].as_py()
+        assert json.loads(text) == {"owner": "REDACTED", "note": "\ud800"}
+
     def test_non_string_column_unchanged(self) -> None:
         table = pa.table({"owner": [1, 2]})
         scrubbed = scrub_result_table(table, frozenset({"owner"}))
