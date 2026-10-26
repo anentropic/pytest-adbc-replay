@@ -36,6 +36,8 @@ class ReplayConnection:
         scrub_keys_global: list[str] | None = None,
         scrub_keys_per_driver: dict[str, list[str]] | None = None,
         scrubber: object = None,
+        scrub_result_keys_global: list[str] | None = None,
+        scrub_result_keys_per_driver: dict[str, list[str]] | None = None,
     ) -> None:
         self._driver_module_name = driver_module_name
         self._db_kwargs = db_kwargs
@@ -47,6 +49,10 @@ class ReplayConnection:
         self._scrub_keys_global: list[str] = scrub_keys_global or []
         self._scrub_keys_per_driver: dict[str, list[str]] = scrub_keys_per_driver or {}
         self._scrubber = scrubber
+        self._scrub_result_keys_global: list[str] = scrub_result_keys_global or []
+        self._scrub_result_keys_per_driver: dict[str, list[str]] = (
+            scrub_result_keys_per_driver or {}
+        )
         self._real_conn: Any = None  # adbc_driver_manager.dbapi.Connection or None
 
         # CLONE-SYNC: update adbc_clone() when adding attributes
@@ -88,6 +94,8 @@ class ReplayConnection:
         clone._scrub_keys_global = self._scrub_keys_global
         clone._scrub_keys_per_driver = self._scrub_keys_per_driver
         clone._scrubber = self._scrubber
+        clone._scrub_result_keys_global = self._scrub_result_keys_global
+        clone._scrub_result_keys_per_driver = self._scrub_result_keys_per_driver
         clone._real_conn = real_clone
         clone._wipe_state = self._wipe_state
         return clone
@@ -111,6 +119,8 @@ class ReplayConnection:
             scrub_keys_per_driver=self._scrub_keys_per_driver,
             driver_name=self._driver_module_name,
             scrubber=self._scrubber,
+            scrub_result_keys_global=self._scrub_result_keys_global,
+            scrub_result_keys_per_driver=self._scrub_result_keys_per_driver,
             wipe_state=self._wipe_state,
         )
 

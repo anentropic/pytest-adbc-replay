@@ -289,10 +289,10 @@ def _ensure_initialised(self) -> None:
     if self._initialised:
         return
     self._initialised = True
-    if self._mode == "all" and not self._wipe_state['wiped']:
+    if self._mode == "all" and not self._wipe_state["wiped"]:
         if self._cassette_path.exists():
             shutil.rmtree(self._cassette_path)
-        self._wipe_state['wiped'] = True
+        self._wipe_state["wiped"] = True
         return
     # ... rest unchanged ...
 ```

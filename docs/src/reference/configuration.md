@@ -12,6 +12,7 @@ All configuration surfaces for the plugin.
 | `adbc_dialect` | ini key (linelist) | `[]` | SQL dialect for normalisation passed to sqlglot. Bare value = global fallback. Per-driver form: `driver_name: dialect`. Empty = auto-detect. |
 | `adbc_auto_patch` | ini key (linelist) | `[]` | List of ADBC driver module names whose `connect()` function is intercepted automatically. Only active for tests with `@pytest.mark.adbc_cassette`. |
 | `adbc_scrub_keys` | ini key (linelist) | `[]` | Parameter key names to redact from `.json` cassette files. Global form: space-separated keys. Per-driver form: `driver_name: key1 key2`. |
+| `adbc_scrub_result_keys` | ini key (linelist) | `[]` | Result column names and JSON keys to redact from `.arrow` cassette files. Same line forms as `adbc_scrub_keys`. See [Scrub values in query results](../how-to/scrub-sensitive-values.md#scrub-values-in-query-results). |
 
 ## pyproject.toml
 
@@ -22,6 +23,7 @@ adbc_record_mode = "none"
 adbc_dialect = []  # e.g. ["adbc_driver_snowflake.dbapi: snowflake", "adbc_driver_duckdb.dbapi: duckdb"]
 adbc_auto_patch = []  # e.g. ["adbc_driver_duckdb.dbapi", "adbc_driver_snowflake.dbapi"]
 adbc_scrub_keys = []  # e.g. ["token password", "adbc_driver_snowflake: account_id"]
+adbc_scrub_result_keys = []  # e.g. ["owner created_time"]
 ```
 
 ## pytest.ini
@@ -35,6 +37,7 @@ adbc_dialect =
     # adbc_driver_duckdb.dbapi: duckdb
 adbc_auto_patch =
 adbc_scrub_keys =
+adbc_scrub_result_keys =
 ```
 
 ### `adbc_dialect`

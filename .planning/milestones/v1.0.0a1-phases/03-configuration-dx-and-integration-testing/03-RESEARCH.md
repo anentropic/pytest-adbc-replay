@@ -217,8 +217,8 @@ mode = cli_mode if cli_mode is not None else ini_mode      # CLI wins
 group.addoption(
     "--adbc-record",
     action="store",
-    default=None,           # None = "not supplied by user"
-    choices=list(_RECORD_MODES),   # only applies when user actually passes the flag
+    default=None,  # None = "not supplied by user"
+    choices=list(_RECORD_MODES),  # only applies when user actually passes the flag
     help="...",
 )
 
@@ -240,6 +240,7 @@ mode: str = cli_mode if cli_mode is not None else ini_mode
 
 ```python
 # src/pytest_adbc_replay/plugin.py
+
 
 def pytest_report_header(config: pytest.Config) -> str:
     """Add record mode to the pytest session header (DX-01)."""
@@ -267,6 +268,7 @@ def pytest_report_header(config: pytest.Config) -> str:
 # src/pytest_adbc_replay/plugin.py
 
 from typing import Callable
+
 
 @pytest.fixture(scope="session")
 def adbc_scrubber() -> Callable[..., object] | None:
@@ -318,6 +320,7 @@ def adbc_replay(
 
 ```python
 # src/pytest_adbc_replay/_session.py
+
 
 class ReplaySession:
     def __init__(
@@ -529,6 +532,7 @@ parser.addini(
 ```python
 # Source: Context7 /pytest-dev/pytest, pytest stable docs
 
+
 @pytest.fixture(scope="session")
 def adbc_replay(
     request: pytest.FixtureRequest,
@@ -562,6 +566,7 @@ Note: `ReplaySession` may need a `dialect` parameter too (for the global default
 # Source: Context7 /pytest-dev/pytest (doc/en/example/simple.md)
 # Returns a string; displayed in the session header.
 
+
 def pytest_report_header(config: pytest.Config) -> str:
     """Display active record mode in pytest header (DX-01)."""
     cli_mode = cast("str | None", config.getoption("--adbc-record"))
@@ -591,6 +596,7 @@ with adbc_driver_sqlite.dbapi.connect() as conn:
 
 ```python
 # Source: Existing tests/test_plugin.py patterns + CONTEXT.md
+
 
 class TestRecordThenReplayCycle:
     def test_record_then_replay_sqlite(self, pytester: pytest.Pytester) -> None:

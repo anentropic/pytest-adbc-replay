@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+- New `adbc_scrub_result_keys` setting redacts values in recorded query results, not just params. A string column with a listed name has its values replaced with `REDACTED`. So does each listed key inside a string cell that holds JSON, such as the `owner` email in Databricks `DESCRIBE ... AS JSON` output. The recording run gets the scrubbed table too, so recording and replay return the same rows.
+
+### Fixes
+
+- Snowflake `SHOW` statements were recorded with an empty cassette key, so every `SHOW` in a test shared one key. `DESCRIBE SEMANTIC VIEW x` and `DESCRIBE VIEW x` were recorded as `DESCRIBE x`. Both now keep their full text. This changes their keys, so cassettes that hold these statements need re-recording (or the `.sql` file edited to the new key). Keys for other statements, including `DESCRIBE TABLE x`, are unchanged.
+
 ## [1.1.2] - 2026-10-14
 
 ### Changes

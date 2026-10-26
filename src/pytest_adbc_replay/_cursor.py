@@ -23,6 +23,7 @@ from pytest_adbc_replay._cassette_io import (
 from pytest_adbc_replay._exceptions import CassetteMissError
 from pytest_adbc_replay._normaliser import normalise_sql
 from pytest_adbc_replay._params import build_registry, params_to_cache_key, serialise_params
+from pytest_adbc_replay._result_scrubbing import result_keys_for_driver, scrub_result_table
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -122,6 +123,8 @@ class ReplayCursor:
         scrub_keys_per_driver: dict[str, list[str]] | None = None,
         driver_name: str | None = None,
         scrubber: object = None,
+        scrub_result_keys_global: list[str] | None = None,
+        scrub_result_keys_per_driver: dict[str, list[str]] | None = None,
         wipe_state: dict[str, bool] | None = None,
         connection: ReplayConnection | None = None,
     ) -> None:
@@ -135,6 +138,11 @@ class ReplayCursor:
         self._scrub_keys_per_driver: dict[str, list[str]] = scrub_keys_per_driver or {}
         self._driver_name = driver_name
         self._scrubber = scrubber
+        self._scrub_result_keys = result_keys_for_driver(
+            scrub_result_keys_global or [],
+            scrub_result_keys_per_driver or {},
+            driver_name,
+        )
         # Pending result from execute(); replaced per call
         self._pending: pa.Table = pa.table({})
         # Cassette key of the most recent successful execute(); lets
@@ -196,8 +204,15 @@ class ReplayCursor:
         canonical_sql: str,
         params: Any,
         table: pa.Table,
-    ) -> None:
-        """Write a new interaction to the cassette directory."""
+    ) -> pa.Table:
+        """
+        Write a new interaction to the cassette directory.
+
+        The result table is scrubbed (``adbc_scrub_result_keys``) before it is
+        written, and the scrubbed table is returned so the recording test sees
+        exactly what a later replay of the cassette will see.
+        """
+        table = scrub_result_table(table, self._scrub_result_keys)
         self._cassette_path.mkdir(parents=True, exist_ok=True)
         sql_path, arrow_path, params_path = interaction_file_paths(
             self._cassette_path, self._record_index
@@ -214,6 +229,7 @@ class ReplayCursor:
         )
         write_params_json(params_raw, params_path)
         self._record_index += 1
+        return table
 
     def _raise_cassette_miss(self, raw_sql: str, canonical_sql: str) -> NoReturn:
         """
@@ -291,8 +307,7 @@ class ReplayCursor:
                     )
                 self._real_cursor.execute(operation, parameters, **kwargs)
                 table: pa.Table = self._real_cursor.fetch_arrow_table()
-                self._record_interaction(canonical, parameters, table)
-                self._pending = table
+                self._pending = self._record_interaction(canonical, parameters, table)
             self._fetch_offset = 0
 
         elif self._mode == "new_episodes":
@@ -308,8 +323,7 @@ class ReplayCursor:
                     )
                 self._real_cursor.execute(operation, parameters, **kwargs)
                 new_table: pa.Table = self._real_cursor.fetch_arrow_table()
-                self._record_interaction(canonical, parameters, new_table)
-                self._pending = new_table
+                self._pending = self._record_interaction(canonical, parameters, new_table)
             self._fetch_offset = 0
 
         elif self._mode == "all":
@@ -318,8 +332,7 @@ class ReplayCursor:
                 raise RuntimeError("ReplayCursor has no real cursor — cannot record in 'all' mode.")
             self._real_cursor.execute(operation, parameters, **kwargs)
             all_table: pa.Table = self._real_cursor.fetch_arrow_table()
-            self._record_interaction(canonical, parameters, all_table)
-            self._pending = all_table
+            self._pending = self._record_interaction(canonical, parameters, all_table)
             self._fetch_offset = 0
 
         # Success: record executed state. Reached only if the mode branch above
