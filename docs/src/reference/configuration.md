@@ -101,6 +101,31 @@ Multiple global lines are merged into a single flat list. Multiple per-driver li
 driver are accumulated. See [Scrub sensitive values](../how-to/scrub-sensitive-values.md) for a
 how-to guide.
 
+### `adbc_scrub_result_keys`
+
+`adbc_scrub_result_keys` takes the same line forms as `adbc_scrub_keys`, but it applies to the
+result tables written to `.arrow` cassette files:
+
+```toml
+[tool.pytest.ini_options]
+adbc_scrub_result_keys = [
+    # Global: redact these names for all drivers
+    "owner",
+    # Per-driver: only for adbc_driver_manager.dbapi
+    "adbc_driver_manager.dbapi: created_time created_by last_access",
+]
+```
+
+- A string column (plain or dictionary-encoded) whose name is listed has every non-null value
+  replaced with `REDACTED`.
+- In any other string cell that holds a JSON object or array, each listed key gets the value
+  `REDACTED`, at any depth.
+- Matching is exact and case-sensitive. Columns that aren't strings are written unchanged.
+- Scrubbing happens at record time, and the recording test receives the scrubbed table.
+
+See [Scrub values in query results](../how-to/scrub-sensitive-values.md#scrub-values-in-query-results)
+for a how-to guide.
+
 ## Notes
 
 The `--adbc-record` CLI flag takes precedence over `adbc_record_mode` for the duration of that pytest run. Neither modifies the stored configuration.

@@ -100,8 +100,9 @@ example, Databricks `DESCRIBE TABLE EXTENDED ... AS JSON` returns the view owner
 `owner` field. A JSON cell that changed is re-serialised compactly, with its key order kept. Cells
 that hold no listed key stay byte-for-byte the same.
 
-Matching is exact and case-sensitive. Columns that aren't strings are left unchanged, and so are
-strings nested inside struct or list columns.
+Matching is exact and case-sensitive. Dictionary-encoded string columns are scrubbed like plain
+ones. Columns that aren't strings are left unchanged, and so are strings nested inside struct or
+list columns.
 
 The recording run gets the scrubbed table too, so a test sees the same rows when it records as when
 it replays. If a test asserts on a value you scrub, it fails while recording, not later in CI.
