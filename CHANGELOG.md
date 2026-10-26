@@ -8,7 +8,7 @@
 
 ### Fixes
 
-- Snowflake `SHOW` statements were recorded with an empty cassette key, so every `SHOW` in a test shared one key. `DESCRIBE SEMANTIC VIEW x` and `DESCRIBE VIEW x` were recorded as `DESCRIBE x`. Both now keep their full text. This changes their keys, so cassettes that hold these statements need re-recording (or the `.sql` file edited to the new key). Keys for other statements, including `DESCRIBE TABLE x`, are unchanged.
+- Snowflake `SHOW` statements were recorded with an empty cassette key, so every `SHOW` in a test shared one key. `DESCRIBE` with any object kind other than `TABLE` (`DESCRIBE SEMANTIC VIEW x`, `DESCRIBE VIEW x`, `DESCRIBE SCHEMA x`, `DESCRIBE FUNCTION f` and so on) was recorded as plain `DESCRIBE x`. These statements now keep their full text, which changes their keys, so re-record cassettes that hold them. With no `adbc_dialect` set, no sqlglot generator keeps a `DESCRIBE` kind, so those statements take the whitespace-only fallback and emit `NormalisationWarning`: their keys keep keyword case as written. Keys for all other statements, including `DESCRIBE TABLE x`, are unchanged.
 
 ## [1.1.2] - 2026-10-14
 

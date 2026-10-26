@@ -8,7 +8,6 @@ import warnings
 import sqlglot
 import sqlglot.errors
 from sqlglot import exp
-from sqlglot.errors import ErrorLevel
 
 
 class NormalisationWarning(UserWarning):
@@ -45,24 +44,16 @@ def _render(expression: exp.Expr, dialect: str | None) -> str | None:
     Render a parsed statement as a cassette key, or return None if every rendering is lossy.
 
     The generic (dialect-less) rendering comes first, so the keys of existing
-    cassettes stay as they were. When the generic generator cannot represent the
-    statement (for example Snowflake ``SHOW``, which it renders as an empty
-    string) or drops a DESCRIBE object kind, the source dialect's own generator
-    is tried next.
+    cassettes stay as they were. Only when that rendering is empty (Snowflake
+    ``SHOW``) or drops a DESCRIBE object kind is the source dialect's own
+    generator tried next. Other constructs sqlglot logs as unsupported keep
+    their generic rendering, as they did before.
     """
     candidates: list[str | None] = [None]
     if dialect is not None:
         candidates.append(dialect)
     for target in candidates:
-        try:
-            rendered = expression.sql(
-                dialect=target,
-                pretty=True,
-                normalize=True,
-                unsupported_level=ErrorLevel.RAISE,
-            )
-        except sqlglot.errors.UnsupportedError:
-            continue
+        rendered = expression.sql(dialect=target, pretty=True, normalize=True)
         if rendered.strip() and not _drops_describe_kind(expression, rendered):
             return rendered
     return None

@@ -29,6 +29,19 @@ def result_keys_for_driver(
     return frozenset(global_keys) | frozenset(per_driver_keys.get(driver_name or "", []))
 
 
+def _string_value_type(data_type: pa.DataType) -> pa.DataType | None:
+    """
+    Return the string type a column's values decode to, or None for other columns.
+
+    Plain string columns decode to their own type; dictionary-encoded columns
+    with string values decode to the dictionary's value type.
+    """
+    if pa.types.is_dictionary(data_type):
+        value_type = data_type.value_type
+        return value_type if _is_string_type(value_type) else None
+    return data_type if _is_string_type(data_type) else None
+
+
 def _is_string_type(data_type: pa.DataType) -> bool:
     """Return True for Arrow string types that can hold the REDACTED sentinel."""
     if pa.types.is_string(data_type) or pa.types.is_large_string(data_type):
@@ -83,14 +96,21 @@ def _redact_json_text(text: str | None, keys: frozenset[str]) -> str | None:
     redacted, changed = _redact_json(decoded, keys)
     if not changed:
         return text
-    return json.dumps(redacted, ensure_ascii=False, separators=(",", ":"))
+    compact = json.dumps(redacted, ensure_ascii=False, separators=(",", ":"))
+    try:
+        compact.encode("utf-8")
+    except UnicodeEncodeError:
+        # A \ud800-style escape decodes to a lone surrogate, which UTF-8 (and so
+        # Arrow) cannot hold raw; keep such characters escaped instead.
+        return json.dumps(redacted, ensure_ascii=True, separators=(",", ":"))
+    return compact
 
 
 def scrub_result_table(table: pa.Table, keys: frozenset[str]) -> pa.Table:
     """
     Redact named keys in a result table before it is written to a cassette.
 
-    For each string column:
+    For each string column (plain or dictionary-encoded):
 
     - if the column name is one of ``keys``, every non-null value becomes ``"REDACTED"``;
     - otherwise, any cell holding a JSON object or array has the value of each
@@ -110,7 +130,8 @@ def scrub_result_table(table: pa.Table, keys: frozenset[str]) -> pa.Table:
     if not keys:
         return table
     for index, field in enumerate(table.schema):
-        if not _is_string_type(field.type):
+        value_type = _string_value_type(field.type)
+        if value_type is None:
             continue
         values: list[str | None] = table.column(index).to_pylist()
         if field.name in keys:
@@ -119,6 +140,9 @@ def scrub_result_table(table: pa.Table, keys: frozenset[str]) -> pa.Table:
             scrubbed = [_redact_json_text(value, keys) for value in values]
         if scrubbed == values:
             continue
-        new_column = pa.chunked_array([pa.array(scrubbed, type=field.type)], type=field.type)
+        new_array = pa.array(scrubbed, type=value_type)
+        if pa.types.is_dictionary(field.type):
+            new_array = new_array.dictionary_encode().cast(field.type)
+        new_column = pa.chunked_array([new_array], type=field.type)
         table = table.set_column(index, field, new_column)
     return table

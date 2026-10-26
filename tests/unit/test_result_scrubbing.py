@@ -128,7 +128,7 @@ class TestScrubResultTable:
         assert scrubbed.schema.equals(table.schema, check_metadata=True)
 
     def test_lone_surrogate_in_json_does_not_crash(self) -> None:
-        """A JSON \\ud800 escape survives scrubbing instead of failing the UTF-8 encode."""
+        """A JSON lone-surrogate escape survives scrubbing instead of failing the UTF-8 encode."""
         table = pa.table({"j": ['{"owner":"a@x.com","note":"\\ud800"}']})
         scrubbed = scrub_result_table(table, frozenset({"owner"}))
         text = scrubbed.column("j")[0].as_py()
