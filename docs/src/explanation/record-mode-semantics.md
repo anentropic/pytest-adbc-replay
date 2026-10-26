@@ -12,11 +12,11 @@ Test suites evolve. A test might add a new query to an existing flow. A dataset 
 
 **`none`** — replay only. The default. The plugin never opens a database connection in this mode. If a cassette directory is missing or the normalised SQL does not match any stored interaction, the test fails immediately with `CassetteMissError`. Use `none` in CI and as the daily development default once cassettes are established.
 
-**`once`** — record if absent, replay if present. Records a cassette the first time a test runs, then never re-records. If the cassette directory already exists, the plugin replays from it. This protects against accidental re-recording: running `pytest --adbc-record=once` twice does not overwrite existing cassettes. Use `once` when adding a new test to a suite where other tests already have cassettes.
+**`once`** — record if absent, replay if present. Records a cassette the first time a test runs, then never re-records. If the cassette directory already exists, the plugin replays from it. This protects against accidental re-recording: running `pytest --adbc-record=once` twice does not overwrite existing cassettes. The choice between recording and replaying is made once per test, at its first query. A test that starts recording records every query it runs, on any cursor or connection, so a test that opens a new connection per query (as a connection pool does) still gets a complete cassette. Use `once` when adding a new test to a suite where other tests already have cassettes.
 
 **`new_episodes`** — replay existing interactions, record new ones. If an interaction (normalised SQL + parameters) is already in the cassette, the plugin replays it. If the interaction is not found, the plugin records it. Use `new_episodes` when you have added new queries to an existing test and want to record only the new interactions without touching the ones already recorded.
 
-**`all`** — re-record everything. Overwrites all existing cassette files on every run. Always opens a database connection. Use `all` when the live data has changed and all cassettes need refreshing.
+**`all`** — re-record everything. Deletes the cassette at the test's first query, then records every query the test runs, on any cursor or connection. Always opens a database connection. Use `all` when the live data has changed and all cassettes need refreshing.
 
 ## Common workflows
 
@@ -37,8 +37,8 @@ stateDiagram-v2
     Execute_query --> Record : mode=all
     Check_cassette --> Replay : interaction found
     Check_cassette --> Error : mode=none, interaction absent
-    Check_cassette --> Record : mode=once, cassette dir absent
-    Check_cassette --> Replay : mode=once, cassette dir present
+    Check_cassette --> Record : mode=once, cassette empty at test's first query
+    Check_cassette --> Replay : mode=once, cassette recorded before the test
     Check_cassette --> Record : mode=new_episodes, interaction absent
 ```
 
@@ -55,7 +55,7 @@ In all other modes (`once`, `new_episodes`, `all`), the plugin may open a databa
 `once` and `none` both look at whether the cassette directory exists. The difference is what they do when it is absent:
 
 - `none`: cassette directory absent → `CassetteMissError`
-- `once`: cassette directory absent → record and create the directory
+- `once`: cassette directory absent (or empty) when the test runs its first query → record every query of the test and create the directory
 
 This asymmetry is intentional. In `none` mode, a missing cassette is always an error — it means a test is running without its recorded data. In `once` mode, a missing cassette is expected on the first run and triggers recording.
 

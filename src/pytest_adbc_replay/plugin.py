@@ -365,6 +365,9 @@ def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> 
     for conn in connections:
         with contextlib.suppress(Exception):
             conn.close()
+    session_obj: ReplaySession | None = _auto_patch_state["session_state"]
+    if session_obj is not None:
+        session_obj.release_test(item.nodeid)
 
 
 # --- Header and fixtures --------------------------------------------------------

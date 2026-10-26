@@ -6,6 +6,7 @@ import importlib
 from pathlib import Path  # noqa: TC003
 from typing import TYPE_CHECKING, Any
 
+from pytest_adbc_replay._cassette_state import CassetteState
 from pytest_adbc_replay._cursor import ReplayCursor
 
 if TYPE_CHECKING:
@@ -38,6 +39,7 @@ class ReplayConnection:
         scrubber: object = None,
         scrub_result_keys_global: list[str] | None = None,
         scrub_result_keys_per_driver: dict[str, list[str]] | None = None,
+        cassette_state: CassetteState | None = None,
     ) -> None:
         self._driver_module_name = driver_module_name
         self._db_kwargs = db_kwargs
@@ -56,7 +58,11 @@ class ReplayConnection:
         self._real_conn: Any = None  # adbc_driver_manager.dbapi.Connection or None
 
         # CLONE-SYNC: update adbc_clone() when adding attributes
-        self._wipe_state: dict[str, bool] = {"wiped": False}
+        # Shared with clones, and (via ReplaySession) with every other connection
+        # the same test opens on this cassette.
+        self._cassette_state: CassetteState = (
+            cassette_state if cassette_state is not None else CassetteState()
+        )
 
         if mode != "none":
             # Only in record modes: import the driver and open a real connection.
@@ -79,7 +85,7 @@ class ReplayConnection:
         In record mode, delegates to the real connection's adbc_clone().
         In replay mode, creates a new ReplayConnection with no real connection.
 
-        All clones share the same cassette path and wipe state.
+        All clones share the same cassette path and cassette state.
         Clone-of-clone is supported.
         """
         real_clone = self._real_conn.adbc_clone() if self._real_conn is not None else None
@@ -97,7 +103,7 @@ class ReplayConnection:
         clone._scrub_result_keys_global = self._scrub_result_keys_global
         clone._scrub_result_keys_per_driver = self._scrub_result_keys_per_driver
         clone._real_conn = real_clone
-        clone._wipe_state = self._wipe_state
+        clone._cassette_state = self._cassette_state
         return clone
 
     def cursor(self) -> ReplayCursor:
@@ -121,7 +127,7 @@ class ReplayConnection:
             scrubber=self._scrubber,
             scrub_result_keys_global=self._scrub_result_keys_global,
             scrub_result_keys_per_driver=self._scrub_result_keys_per_driver,
-            wipe_state=self._wipe_state,
+            cassette_state=self._cassette_state,
         )
 
     def close(self) -> None:

@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from pytest_adbc_replay._cassette_io import (
+    count_interactions,
     interaction_file_paths,
     write_arrow_table,
     write_params_json,
@@ -97,14 +98,14 @@ class TestAdBCClone:
         assert clone_result.num_rows == 1
 
     def test_clone_of_clone(self, tmp_path: Path) -> None:
-        """CLONE-07: Clone-of-clone works and shares cassette path and wipe state."""
+        """CLONE-07: Clone-of-clone works and shares cassette path and cassette state."""
         source = self._make_connection(tmp_path, mode="none")
         clone = source.adbc_clone()
         grandchild = clone.adbc_clone()
 
         assert isinstance(grandchild, ReplayConnection)
         assert grandchild._cassette_path is source._cassette_path
-        assert grandchild._wipe_state is source._wipe_state
+        assert grandchild._cassette_state is source._cassette_state
 
     def test_close_isolation(self, tmp_path: Path) -> None:
         """CLONE-08: Closing a clone does not affect source or cassette directory."""
@@ -164,16 +165,18 @@ class TestSharedWipeState:
         source_cursor.execute("SELECT 1")
 
         # Cassette was wiped and new recording written
-        assert source._wipe_state["wiped"] is True
+        assert source._cassette_state.wiped is True
 
         # Clone cursor executes second -- should NOT wipe again
         clone_cursor = clone.cursor()
         clone_cursor.execute("SELECT 1")
 
         # Verify wipe state is shared
-        assert clone._wipe_state is source._wipe_state
-        assert clone._wipe_state["wiped"] is True
+        assert clone._cassette_state is source._cassette_state
+        assert clone._cassette_state.wiped is True
 
         # The cassette should still have recordings from source's cursor
-        # (if clone had wiped, source's recording would be gone)
+        # (if clone had wiped, source's recording would be gone), and the clone's
+        # recording is added after it rather than overwriting it.
         assert cassette.exists()
+        assert count_interactions(cassette) == 2

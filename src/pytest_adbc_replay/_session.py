@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pytest_adbc_replay._cassette_path import node_id_to_cassette_path
+from pytest_adbc_replay._cassette_state import CassetteState
 
 if TYPE_CHECKING:
     import pytest
@@ -49,6 +50,38 @@ class ReplaySession:
         self.scrub_result_keys_global: list[str] = scrub_result_keys_global or []
         self.scrub_result_keys_per_driver: dict[str, list[str]] = scrub_result_keys_per_driver or {}
         self.differentiator_keys_default = differentiator_keys_default
+        # Cassette state per (test node ID, cassette path), so every connection a
+        # test opens on one cassette shares a single record/replay decision and
+        # interaction index sequence. Released when the test ends.
+        self._cassette_states: dict[tuple[str | None, Path], CassetteState] = {}
+
+    def cassette_state(self, nodeid: str | None, cassette_path: Path) -> CassetteState:
+        """
+        Return the cassette state shared by a test's connections on one cassette.
+
+        Args:
+            nodeid: Node ID of the test opening the connection, or None when the
+                connection is not tied to a test.
+            cassette_path: The connection's resolved cassette directory.
+
+        Returns:
+            The same CassetteState for every call with the same arguments, until
+            release_test() is called for ``nodeid``.
+        """
+        return self._cassette_states.setdefault((nodeid, cassette_path), CassetteState())
+
+    def release_test(self, nodeid: str) -> None:
+        """
+        Drop the cassette state of a finished test.
+
+        A later run of the same test (e.g. a rerun) then decides afresh whether
+        to record or replay.
+
+        Args:
+            nodeid: Node ID of the finished test.
+        """
+        for key in [key for key in self._cassette_states if key[0] == nodeid]:
+            del self._cassette_states[key]
 
     def _extract_differentiator_segments(
         self,
@@ -161,6 +194,9 @@ class ReplaySession:
             scrub_result_keys_global=self.scrub_result_keys_global,
             scrub_result_keys_per_driver=self.scrub_result_keys_per_driver,
             scrubber=self.scrubber,
+            cassette_state=self.cassette_state(
+                request.node.nodeid if request is not None else None, cassette_path
+            ),
         )
 
     def wrap_from_item(
@@ -259,4 +295,5 @@ class ReplaySession:
             scrub_result_keys_global=self.scrub_result_keys_global,
             scrub_result_keys_per_driver=self.scrub_result_keys_per_driver,
             scrubber=self.scrubber,
+            cassette_state=self.cassette_state(item.nodeid, cassette_path),
         )

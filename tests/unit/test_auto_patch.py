@@ -129,6 +129,46 @@ class TestAutoInterception:
         replay_result = pytester.runpytest("--adbc-record=none", "-v")
         replay_result.assert_outcomes(passed=1)
 
+    def test_once_decides_per_test(self, pytester: pytest.Pytester) -> None:
+        """
+        The 'once' record/replay decision is made per test, not per session.
+
+        A second test sharing a named cassette replays what the first test
+        recorded in the same run, rather than recording onto the end of it.
+        """
+        pytester.makeini("[pytest]\nadbc_auto_patch = adbc_driver_sqlite.dbapi\n")
+        pytester.makepyfile(
+            """
+            import pytest
+            import adbc_driver_sqlite.dbapi as driver
+
+            def _query(sql):
+                cursor = driver.connect().cursor()
+                cursor.execute(sql)
+                return cursor.fetch_arrow_table().column(0).to_pylist()
+
+            @pytest.mark.adbc_cassette("shared")
+            def test_first():
+                assert _query("SELECT 1 AS a") == [1]
+                assert _query("SELECT 2 AS b") == [2]
+
+            @pytest.mark.adbc_cassette("shared")
+            def test_second_replays():
+                assert _query("SELECT 1 AS a") == [1]
+                # Not in the cassette: a replaying test misses rather than records.
+                _query("SELECT 3 AS c")
+            """
+        )
+        result = pytester.runpytest("--adbc-record=once", "-v")
+        result.assert_outcomes(passed=1, failed=1)
+        result.stdout.fnmatch_lines(["*test_second_replays FAILED*", "*CassetteMissError*"])
+
+        cassette = pytester.path / "tests" / "cassettes" / "shared" / "adbc_driver_sqlite.dbapi"
+        assert sorted(p.name for p in cassette.glob("*_query.sql")) == [
+            "000_query.sql",
+            "001_query.sql",
+        ]
+
     def test_unmarked_test_passes_through_to_real_driver(self, pytester: pytest.Pytester) -> None:
         """
         Tests without @pytest.mark.adbc_cassette receive the real connect() unchanged.
@@ -244,6 +284,40 @@ class TestPerDriverCassetteLayout:
 
 class TestAdbcConnectFixture:
     """adbc_connect fixture provides an escape hatch for explicit connections."""
+
+    def test_records_queries_from_several_connections(self, pytester: pytest.Pytester) -> None:
+        """
+        Connections opened through adbc_connect in one test share one recording.
+
+        Each test run also decides afresh: the second record=once run replays
+        the cassette its first run recorded.
+        """
+        pytester.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.adbc_cassette("explicit")
+            def test_two_connections(adbc_connect):
+                for value in (1, 2):
+                    conn = adbc_connect("adbc_driver_sqlite.dbapi")
+                    cursor = conn.cursor()
+                    cursor.execute(f"SELECT {value} AS v")
+                    assert cursor.fetch_arrow_table().column(0).to_pylist() == [value]
+            """
+        )
+        record_result = pytester.runpytest("--adbc-record=once", "-v")
+        record_result.assert_outcomes(passed=1)
+
+        cassette = pytester.path / "tests" / "cassettes" / "explicit" / "adbc_driver_sqlite.dbapi"
+        recorded = sorted(p.name for p in cassette.glob("*_query.sql"))
+        assert recorded == ["000_query.sql", "001_query.sql"]
+
+        rerun_result = pytester.runpytest("--adbc-record=once", "-v")
+        rerun_result.assert_outcomes(passed=1)
+        assert sorted(p.name for p in cassette.glob("*_query.sql")) == recorded
+
+        replay_result = pytester.runpytest("--adbc-record=none", "-v")
+        replay_result.assert_outcomes(passed=1)
 
     def test_adbc_connect_fixture_available(self, pytester: pytest.Pytester) -> None:
         """adbc_connect fixture is available without any conftest setup."""

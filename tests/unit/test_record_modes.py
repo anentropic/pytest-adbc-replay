@@ -20,6 +20,7 @@ from pytest_adbc_replay._connection import ReplayConnection
 from pytest_adbc_replay._cursor import ReplayCursor
 from pytest_adbc_replay._exceptions import CassetteMissError
 from pytest_adbc_replay._normaliser import normalise_sql
+from pytest_adbc_replay._session import ReplaySession
 
 
 def _make_table(values: list[int]) -> pa.Table:
@@ -473,3 +474,29 @@ class TestOrderedQueueReplay:
 
         assert ra.column("value").to_pylist() == [10]
         assert rb.column("value").to_pylist() == [20]
+
+
+class TestSessionCassetteState:
+    """ReplaySession shares one CassetteState per test and cassette, until the test ends."""
+
+    def test_same_test_and_cassette_share_state(self, tmp_path: Path) -> None:
+        """Every connection a test opens on one cassette gets the same state."""
+        session = ReplaySession(mode="once", cassette_dir=tmp_path)
+        state = session.cassette_state("t.py::test_a", tmp_path / "c")
+        assert session.cassette_state("t.py::test_a", tmp_path / "c") is state
+        assert session.cassette_state("t.py::test_a", tmp_path / "other") is not state
+        assert session.cassette_state("t.py::test_b", tmp_path / "c") is not state
+
+    def test_release_test_drops_only_that_tests_state(self, tmp_path: Path) -> None:
+        """release_test() makes the next run of that test start from fresh state."""
+        session = ReplaySession(mode="once", cassette_dir=tmp_path)
+        state_a = session.cassette_state("t.py::test_a", tmp_path / "c")
+        state_a.once_replay = False
+        state_b = session.cassette_state("t.py::test_b", tmp_path / "c")
+
+        session.release_test("t.py::test_a")
+
+        fresh = session.cassette_state("t.py::test_a", tmp_path / "c")
+        assert fresh is not state_a
+        assert fresh.once_replay is None
+        assert session.cassette_state("t.py::test_b", tmp_path / "c") is state_b
