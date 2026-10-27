@@ -4,7 +4,7 @@
 
 ### Changes
 
-- All of a test's connections on one cassette now share a single replay queue. If a test repeats a query on new connections (for example a count before and after an insert, each on its own pool checkout), the replay returns each recording in the order it was recorded. Until now, every connection got its own copy of the queue and replayed the first recording again. Clones no longer each replay the same single recording: a cassette in which two connections both replayed one recording of a query now fails with `CassetteMissError` on the second one, so re-record it.
+- All of a test's connections on one cassette now share a single replay queue. If a test repeats a query on new connections (for example a count before and after an insert, each on its own pool checkout), the replay returns each recording in the order it was recorded. Until now, every connection got its own copy of the queue and replayed the first recording again. Clones no longer each replay the same single recording: in a cassette where two connections both replayed one recording of a query, the second one now fails with `CassetteMissError` in `none` mode and in a replaying `once` test (in `new_episodes` it records a new interaction instead), so re-record it.
 
 ### Fixes
 

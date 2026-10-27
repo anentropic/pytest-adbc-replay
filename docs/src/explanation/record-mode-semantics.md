@@ -12,7 +12,7 @@ Test suites evolve. A test might add a new query to an existing flow. A dataset 
 
 **`none`** — replay only. The default. The plugin never opens a database connection in this mode. If a cassette directory is missing or the normalised SQL does not match any stored interaction, the test fails immediately with `CassetteMissError`. Use `none` in CI and as the daily development default once cassettes are established.
 
-**`once`** — record if absent, replay if present. Records a cassette the first time a test runs, then never re-records. If the cassette directory already exists, the plugin replays from it. This protects against accidental re-recording: running `pytest --adbc-record=once` twice does not overwrite existing cassettes. The choice between recording and replaying is made once per test, at its first query. A test that starts recording records every query it runs, on any cursor or connection, so a test that opens a new connection per query (as a connection pool does) still gets a complete cassette. On replay, all of a test's connections share one queue per query, so a query the test repeats on new connections replays each recording in the order it was recorded. Use `once` when adding a new test to a suite where other tests already have cassettes.
+**`once`** — record if absent, replay if present. Records a cassette the first time a test runs, then never re-records. If the cassette already holds interactions, the plugin replays from it; a missing or empty cassette directory is recorded. This protects against accidental re-recording: running `pytest --adbc-record=once` twice does not overwrite existing cassettes. The choice between recording and replaying is made once per test, at its first query. A test that starts recording records every query it runs, on any cursor or connection, so a test that opens a new connection per query (as a connection pool does) still gets a complete cassette. On replay, all of a test's connections share one queue per query, so a query the test repeats on new connections replays each recording in the order it was recorded. Use `once` when adding a new test to a suite where other tests already have cassettes.
 
 **`new_episodes`** — replay existing interactions, record new ones. If an interaction (normalised SQL + parameters) is already in the cassette, the plugin replays it. If the interaction is not found, the plugin records it. Use `new_episodes` when you have added new queries to an existing test and want to record only the new interactions without touching the ones already recorded.
 
@@ -52,9 +52,9 @@ In all other modes (`once`, `new_episodes`, `all`), the plugin may open a databa
 
 ## Mode and the cassette directory
 
-`once` and `none` both look at whether the cassette directory exists. The difference is what they do when it is absent:
+`once` and `none` both look at whether the cassette has any interactions. The difference is what they do when it has none:
 
-- `none`: cassette directory absent → `CassetteMissError`
+- `none`: cassette directory absent or empty → `CassetteMissError`
 - `once`: cassette directory absent (or empty) when the test runs its first query → record every query of the test and create the directory
 
 This asymmetry is intentional. In `none` mode, a missing cassette is always an error — it means a test is running without its recorded data. In `once` mode, a missing cassette is expected on the first run and triggers recording.

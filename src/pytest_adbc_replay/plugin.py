@@ -53,7 +53,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help=(
             "ADBC cassette record mode. "
             "none (default): replay only, fail on miss. "
-            "once: record if cassette absent, replay if present. "
+            "once: per test, record if the cassette is empty, else replay. "
             "new_episodes: replay existing, record new. "
             "all: re-record everything."
         ),

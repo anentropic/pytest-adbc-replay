@@ -52,7 +52,9 @@ The shared state covers four things:
 - **Interaction numbering.** Each recording takes the next free number in the cassette directory, so two cursors never write over each other's files.
 - **The replay queue.** The cassette is loaded once into a queue per query (normalised SQL plus parameters), and every connection takes results from it. A query the test repeats on new connections, such as a count before and after an insert, replays each recording in the order it was recorded.
 
-The state is released when the test ends, so the next test, or a rerun of the same one, decides afresh. A connection created with `wrap()` without a `request` isn't tied to a test, so it gets state of its own.
+The state is released when the test ends, so the next test, or a rerun of the same one, decides afresh. That holds for connections created during a test: auto-patched `connect()` calls, `adbc_connect`, and `wrap(request=request)` from a function-scoped fixture.
+
+A connection created outside a test keeps one state for as long as it lives. That covers `wrap()` without a `request`, `wrap(request=request)` from a module-, class- or session-scoped fixture, and a session-scoped pool, which also keeps the cassette path of the test that created its source connection. Every test that uses such a connection shares one `once` decision, one `all` wipe and one replay queue. To give each test its own cassette and state, create the pool or connection in a function-scoped fixture.
 
 ## Concurrent access
 
