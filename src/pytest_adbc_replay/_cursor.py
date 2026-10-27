@@ -14,12 +14,14 @@ from adbc_driver_manager.dbapi import NotSupportedError, ProgrammingError
 
 from pytest_adbc_replay._cassette_io import (
     cassette_has_interactions,
+    count_interactions,
     interaction_file_paths,
     load_all_interactions,
     write_arrow_table,
     write_params_json,
     write_sql_file,
 )
+from pytest_adbc_replay._cassette_state import CassetteState
 from pytest_adbc_replay._exceptions import CassetteMissError
 from pytest_adbc_replay._normaliser import normalise_sql
 from pytest_adbc_replay._params import build_registry, params_to_cache_key, serialise_params
@@ -125,7 +127,7 @@ class ReplayCursor:
         scrubber: object = None,
         scrub_result_keys_global: list[str] | None = None,
         scrub_result_keys_per_driver: dict[str, list[str]] | None = None,
-        wipe_state: dict[str, bool] | None = None,
+        cassette_state: CassetteState | None = None,
         connection: ReplayConnection | None = None,
     ) -> None:
         self._real_cursor = real_cursor
@@ -162,14 +164,18 @@ class ReplayCursor:
         self._result_consumed: bool = False
         # Lazy init flag — cassette is scanned on first execute() call
         self._initialised: bool = False
-        # Ordered-queue replay: key -> deque of pa.Table results (CASS-06)
+        # Ordered-queue replay: key -> deque of pa.Table results (CASS-06). Replaced
+        # on first execute() by the queue shared with the test's other cursors.
         self._replay_queue: dict[tuple[str, str], deque[pa.Table]] = defaultdict(deque)
-        # Next interaction index to write when recording
+        # Interaction count when this cursor last looked: the index the next
+        # recording would take. Written interactions are indexed from the cassette
+        # on disk at write time, since other cursors may have written since.
         self._record_index: int = 0
-        # For 'all' mode: shared mutable container tracking whether cassette dir was wiped.
-        # When shared across clones, only the first cursor to execute() triggers rmtree.
-        self._wipe_state: dict[str, bool] = (
-            wipe_state if wipe_state is not None else {"wiped": False}
+        # State shared with every cursor writing this cassette in this test: the
+        # 'all' mode wipe and the 'once' mode record/replay decision happen once
+        # per test, not once per cursor.
+        self._cassette_state: CassetteState = (
+            cassette_state if cassette_state is not None else CassetteState()
         )
 
     def _ensure_initialised(self) -> None:
@@ -178,18 +184,34 @@ class ReplayCursor:
             return
         self._initialised = True
         # 'all' mode: wipe the cassette directory on first execute() (not at fixture init)
-        if self._mode == "all" and not self._wipe_state["wiped"]:
-            if self._cassette_path.exists():
-                shutil.rmtree(self._cassette_path)
-            self._wipe_state["wiped"] = True
-            return  # Don't load from a directory we just deleted
-        # Load existing cassette into replay queue (for none/once/new_episodes)
-        interactions = load_all_interactions(self._cassette_path)
-        for canonical_sql, table, params_raw in interactions:
-            key = self._make_key_from_canonical(canonical_sql, params_raw)
-            self._replay_queue[key].append(table)
-        # Record index = next index to write after existing ones
-        self._record_index = len(interactions)
+        state = self._cassette_state
+        with state.write_lock:
+            if self._mode == "all" and not state.wiped:
+                if self._cassette_path.exists():
+                    shutil.rmtree(self._cassette_path)
+                state.wiped = True
+                return  # Don't load from a directory we just deleted
+            # 'once' mode: decide record vs replay on the test's first execute(),
+            # from the cassette as it was before this test wrote to it. Re-deciding
+            # later would see this test's own recordings and flip to replay.
+            if self._mode == "once" and state.once_replay is None:
+                state.once_replay = cassette_has_interactions(self._cassette_path)
+            # A cursor that only records never reads its replay queue, so skip
+            # re-reading every interaction recorded so far ('all', or a recording
+            # 'once' test).
+            if self._mode == "all" or (self._mode == "once" and not state.once_replay):
+                return
+            # Load the cassette into the test's shared replay queue (for
+            # none/once/new_episodes) once, under the lock so a concurrent
+            # recording is never read half-written.
+            if state.replay_queue is None:
+                state.replay_queue = defaultdict(deque)
+                for canonical_sql, table, params_raw in load_all_interactions(self._cassette_path):
+                    key = self._make_key_from_canonical(canonical_sql, params_raw)
+                    state.replay_queue[key].append(table)
+                    state.recorded_schemas.setdefault(key, table.schema)
+            self._replay_queue = state.replay_queue
+            self._record_index = count_interactions(self._cassette_path)
 
     def _make_key(self, canonical_sql: str, params: Any) -> tuple[str, str]:
         """Make a hashable cassette key from canonical SQL and raw params."""
@@ -213,12 +235,6 @@ class ReplayCursor:
         exactly what a later replay of the cassette will see.
         """
         table = scrub_result_table(table, self._scrub_result_keys)
-        self._cassette_path.mkdir(parents=True, exist_ok=True)
-        sql_path, arrow_path, params_path = interaction_file_paths(
-            self._cassette_path, self._record_index
-        )
-        write_sql_file(canonical_sql, sql_path)
-        write_arrow_table(table, arrow_path)
         params_raw = serialise_params(params, self._registry)
         params_raw = apply_scrubbing(
             params_raw,
@@ -227,8 +243,17 @@ class ReplayCursor:
             self._driver_name,
             self._scrubber,
         )
-        write_params_json(params_raw, params_path)
-        self._record_index += 1
+        with self._cassette_state.write_lock:
+            # Index from the cassette on disk, not a per-cursor counter: another
+            # cursor or connection on this cassette may have recorded since this
+            # cursor last wrote, and must not be overwritten.
+            index = count_interactions(self._cassette_path)
+            self._cassette_path.mkdir(parents=True, exist_ok=True)
+            sql_path, arrow_path, params_path = interaction_file_paths(self._cassette_path, index)
+            write_sql_file(canonical_sql, sql_path)
+            write_arrow_table(table, arrow_path)
+            write_params_json(params_raw, params_path)
+        self._record_index = index + 1
         return table
 
     def _raise_cassette_miss(self, raw_sql: str, canonical_sql: str) -> NoReturn:
@@ -261,10 +286,10 @@ class ReplayCursor:
 
     def _load_from_queue(self, key: tuple[str, str], raw_sql: str, canonical_sql: str) -> pa.Table:
         """Pop the next result from the replay queue for this key, or raise CassetteMissError."""
-        queue = self._replay_queue.get(key)
-        if queue:
-            result = queue.popleft()
-            return result
+        with self._cassette_state.write_lock:
+            queue = self._replay_queue.get(key)
+            if queue:
+                return queue.popleft()
         # Nothing in queue — determine appropriate error
         self._raise_cassette_miss(raw_sql, canonical_sql)
 
@@ -296,11 +321,12 @@ class ReplayCursor:
             self._fetch_offset = 0
 
         elif self._mode == "once":
-            if cassette_has_interactions(self._cassette_path):
-                # Cassette exists with interactions — replay
+            if self._cassette_state.once_replay:
+                # Cassette had interactions when this test started — replay
                 self._pending = self._load_from_queue(key, operation, canonical)
             else:
-                # No cassette (or empty dir) — record using real cursor
+                # No cassette (or empty dir) when this test started — record
+                # every query, using the real cursor
                 if self._real_cursor is None:
                     raise RuntimeError(
                         "ReplayCursor has no real cursor — cannot record in 'once' mode."
@@ -311,10 +337,12 @@ class ReplayCursor:
             self._fetch_offset = 0
 
         elif self._mode == "new_episodes":
-            queue = self._replay_queue.get(key)
-            if queue:
+            with self._cassette_state.write_lock:
+                queue = self._replay_queue.get(key)
+                replayed = queue.popleft() if queue else None
+            if replayed is not None:
                 # Existing interaction — replay
-                self._pending = queue.popleft()
+                self._pending = replayed
             else:
                 # New interaction — record
                 if self._real_cursor is None:
@@ -393,14 +421,20 @@ class ReplayCursor:
             self._ensure_initialised()
             canonical = normalise_sql(operation, self._dialect)
             key = self._make_key(canonical, parameters)
-            queue = self._replay_queue.get(key)
-            if queue:
-                # Peek the front entry's schema — do NOT popleft (peek-don't-pop).
-                return queue[0].schema
+            with self._cassette_state.write_lock:
+                queue = self._replay_queue.get(key)
+                if queue:
+                    # Peek the front entry's schema — do NOT popleft (peek-don't-pop).
+                    return queue[0].schema
             if self._executed and key == self._last_executed_key:
                 # This query was just executed; its single recording was already
                 # popped off the queue but its schema is still in _pending.
                 return self._pending.schema
+            recorded = self._cassette_state.recorded_schemas.get(key)
+            if recorded is not None:
+                # Recorded, but the test's other connections (which share the
+                # queue) already consumed every recording of it.
+                return recorded
             # No matching interaction — raise the same error _load_from_queue would.
             self._raise_cassette_miss(operation, canonical)
         if self._real_cursor is None:
