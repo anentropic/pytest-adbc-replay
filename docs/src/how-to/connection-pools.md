@@ -89,11 +89,13 @@ def pool(adbc_replay):
 
 The pool then calls `adbc_clone()` on the wrapped `ReplayConnection`, and all checkouts share the same cassette.
 
+Record the cassette with `--adbc-record=once` as usual. Every query the test runs is recorded, whichever pool connection runs it, and replay hands each connection the results in the order they were recorded.
+
 !!! warning
-    Cloned connections must be used sequentially. In typical single-threaded pytest runs, this is not a concern. Sequential access is only a limitation when testing multi-threaded server code with concurrent pool connections. See the [explanation article](../explanation/connection-pooling.md) for details on the failure mode.
+    If several threads run the *same* query at the same time and its recorded results differ, which thread receives which result depends on thread scheduling. Different queries are always matched correctly. See the [explanation article](../explanation/connection-pooling.md) for details.
 
 ## Related
 
 - [Connection pooling reference](../reference/connection-pooling.md) -- `adbc_clone()` method spec and shared cassette semantics
-- [Connection pooling and replay](../explanation/connection-pooling.md) -- design rationale and concurrent-access failure mode
+- [Connection pooling and replay](../explanation/connection-pooling.md) -- design rationale and shared cassette state
 - [Run in CI without credentials](ci-without-credentials.md) -- replay cassettes in CI

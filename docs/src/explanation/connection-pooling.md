@@ -1,6 +1,6 @@
 # Connection pooling and replay
 
-This article explains how pytest-adbc-replay handles connection pooling, why clones share cassette paths and wipe state, and what happens when concurrent access is attempted.
+This article explains how pytest-adbc-replay handles connection pooling, why a test's connections share one cassette and one record/replay state, and what happens when connections run queries concurrently.
 
 ## Why clones share the cassette path
 
@@ -25,7 +25,7 @@ sequenceDiagram
     Test->>Source: adbc_connect() or wrap()
     Test->>Pool: create_pool(config)
     Pool->>Source: source.adbc_clone()
-    Source->>Clone: new ReplayConnection (shared cassette, shared wipe state)
+    Source->>Clone: new ReplayConnection (shared cassette, shared cassette state)
     Pool-->>Test: pool ready
 
     Test->>Pool: pool.connect()
@@ -39,31 +39,32 @@ sequenceDiagram
 
 In **record mode**, the real ADBC connection is also cloned via `self._real_conn.adbc_clone()`. Each clone holds its own real connection handle and executes queries against the live database. Results are written to the shared cassette directory.
 
-In **replay mode**, clones have no real connection (`_real_conn = None`). Each cursor loads interactions from the shared cassette directory and replays them without any database access.
+In **replay mode**, clones have no real connection (`_real_conn = None`). Cursors replay from the shared cassette directory without any database access.
 
-## Shared wipe state
+## One cassette state per test
 
-In `all` record mode, the cassette directory is wiped before recording begins so that stale interactions are removed. With pooled connections, multiple cursors across multiple clones may call `execute()` -- but only the first one should wipe the directory.
+A cassette is a record of what a test did, not of what one connection did. So the decisions about a cassette are made once per test and shared by every cursor, clone and connection the test opens on it. That includes separate `connect()` calls, which is how a pool that opens a connection per query behaves, and connections opened by a fixture's teardown.
 
-The wipe state is a shared mutable dict (`{"wiped": False}`) referenced by the source connection and all its clones. When the first cursor across any connection calls `execute()`, it checks this dict, wipes the cassette directory via `shutil.rmtree()`, and sets `wiped` to `True`. All subsequent cursors -- on the same connection or on any clone -- see `wiped = True` and skip the wipe.
+The shared state covers four things:
 
-This prevents a later pool checkout from destroying recordings made by an earlier checkout in the same test.
+- **The `once` decision.** At the test's first query, the plugin checks whether the cassette already holds interactions. If it doesn't, every query the test runs is recorded. If it does, every query is replayed. Deciding per query would not work: the test's own first recording would make the cassette look recorded, and its second query would replay and miss.
+- **The `all` wipe.** The cassette directory is deleted once, at the test's first query. A later pool checkout doesn't delete recordings made by an earlier one.
+- **Interaction numbering.** Each recording takes the next free number in the cassette directory, so two cursors never write over each other's files.
+- **The replay queue.** The cassette is loaded once into a queue per query (normalised SQL plus parameters), and every connection takes results from it. A query the test repeats on new connections, such as a count before and after an insert, replays each recording in the order it was recorded.
 
-## Concurrent access and its failure mode
+The state is released when the test ends, so the next test, or a rerun of the same one, decides afresh. A connection created with `wrap()` without a `request` isn't tied to a test, so it gets state of its own.
 
-Replay queues are per-cursor, not shared across clones. When a cursor first calls `execute()` in replay mode, it loads all cassette interactions into its own `deque`. Each subsequent `execute()` pops the next interaction from that deque.
+## Concurrent access
 
-If two cursors from different clones execute concurrently -- for example, in multi-threaded test code where two threads each hold a pool connection -- each cursor pops from its own independent queue. The pop order depends on thread scheduling, not query identity. Cursor A might pop a result that was originally recorded for a query that cursor B is about to execute, leading to incorrect result matching.
+Cursors update the shared state under a lock, so concurrent cursors never write the same interaction number and never receive the same recording. Results are matched to queries by SQL and parameters, so a thread running one query never receives another query's result.
 
-In typical single-threaded pytest runs, this is never a problem. Cursors execute sequentially: one cursor completes all its queries before another cursor starts. The sequential access model matches how most test code works -- tests call the system under test, which uses one pool connection at a time.
-
-This is a known limitation, not a bug. Supporting truly concurrent replay would require a shared, query-matched replay mechanism rather than simple queue-based replay. The sequential model is enough for typical single-threaded test runs.
+One case still depends on thread scheduling: when several threads run the *same* query at the same time and its recordings differ, which thread receives which recording depends on who gets there first. In typical single-threaded pytest runs, queries run one after another and this never comes up.
 
 ## ADBC spec context
 
 `adbc_clone()` is an ADBC extension, not part of the DBAPI 2.0 standard. In the ADBC Python API, calling `connection.adbc_clone()` creates a new `Connection` sharing the same underlying `AdbcDatabase`. The clone has its own transaction state and cursor lifecycle but shares the database handle.
 
-pytest-adbc-replay's `ReplayConnection.adbc_clone()` follows this pattern: the clone shares configuration, cassette path, and wipe state with its source, but maintains independent cursor state.
+pytest-adbc-replay's `ReplayConnection.adbc_clone()` follows this pattern: the clone shares configuration, cassette path and cassette state with its source, and has its own cursors.
 
 See the [ADBC Python API documentation](https://arrow.apache.org/adbc/current/python/api/adbc_driver_manager.html) for the upstream specification.
 

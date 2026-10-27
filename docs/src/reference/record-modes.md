@@ -7,9 +7,9 @@ The plugin has four record modes controlling when interactions are recorded and 
 | Mode | Behaviour |
 |---|---|
 | `none` | Replay only. Raises `CassetteMissError` if the cassette directory is absent or the interaction is not found. No database connection is opened. Default. |
-| `once` | Records if the cassette directory does not exist. Replays from cassette if the directory exists. Does not re-record interactions already in the cassette. |
+| `once` | Decided once per test, at its first query. If the cassette has no interactions yet, records every query the test runs, on any cursor or connection. Otherwise replays every query from the cassette. Never re-records an existing cassette. |
 | `new_episodes` | Replays interactions that are present in the cassette. Records any interaction not found in the cassette. Opens a database connection only when a new interaction is encountered. |
-| `all` | Re-records all interactions on every run, overwriting existing cassette files. Always opens a database connection. |
+| `all` | Deletes the cassette at the test's first query, then records every query the test runs, on any cursor or connection. Always opens a database connection. |
 
 ## Setting the mode
 
