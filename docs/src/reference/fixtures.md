@@ -193,7 +193,7 @@ This differs from returning `{decimal.Decimal: ...}` directly, which merges your
 
 **Returns:** `ReplayConnection`
 
-Creates a cloned connection sharing the same cassette path, configuration, and wipe state. Used internally by connection pool libraries (e.g. adbc-poolhouse) that call `adbc_clone()` to create checkout connections.
+Creates a cloned connection sharing the same cassette path, configuration and cassette state (the once-mode decision, the all-mode wipe, interaction numbering and the replay queue). Used internally by connection pool libraries (e.g. adbc-poolhouse) that call `adbc_clone()` to create checkout connections.
 
 **Interface:**
 

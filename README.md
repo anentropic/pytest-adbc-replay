@@ -107,7 +107,7 @@ adbc_scrub_result_keys = []  # e.g. ["owner created_time"]
 | Mode | Behaviour |
 |---|---|
 | `none` | Replay only. Raises `CassetteMissError` if cassette is absent (default). |
-| `once` | Record if cassette absent, replay if cassette present. |
+| `once` | Record if the cassette is empty when the test starts querying, replay if it is already recorded. Decided once per test. |
 | `new_episodes` | Replay existing interactions, record new ones. |
 | `all` | Re-record everything on every run. |
 

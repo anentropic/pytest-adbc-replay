@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0] - 2026-10-27
+
+### Changes
+
+- All of a test's connections on one cassette now share a single replay queue. If a test repeats a query on new connections (for example a count before and after an insert, each on its own pool checkout), the replay returns each recording in the order it was recorded. Until now, every connection got its own copy of the queue and replayed the first recording again. Clones no longer each replay the same single recording: in a cassette where two connections both replayed one recording of a query, the second one now fails with `CassetteMissError` in `none` mode and in a replaying `once` test (in `new_episodes` it records a new interaction instead), so re-record it.
+
+### Fixes
+
+- `--adbc-record=once` stopped recording after a test's first query: once that query was written, the cassette counted as recorded, so the test's next query, on any cursor or connection, replayed and failed with `CassetteMissError`. The record-or-replay decision is now made once per test, at its first query, and applies to every query the test runs. A test that opens a new connection per query, as a connection pool does, records a complete cassette.
+- `--adbc-record=all` could lose recordings when a test used more than one cursor or connection. A second cursor overwrote the first cursor's `000_*` files, and a second connection deleted the cassette again. The cassette is now deleted once per test and each recording takes the next free interaction number.
+- A query run from a fixture's teardown now records into, and replays from, the test's cassette state. Auto-patched `connect()` calls made during fixture teardown are intercepted too.
+- In `once` and `all` modes, a cursor that only records no longer re-reads every interaction recorded so far. In other modes the cassette is read under a lock, so a threaded pool never reads an interaction that is still being written.
+
 ## [1.2.0] - 2026-10-26
 
 ### Features

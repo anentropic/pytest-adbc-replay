@@ -62,7 +62,7 @@ Run pytest with the `--adbc-record=once` flag:
 pytest --adbc-record=once
 ```
 
-The `once` mode records a cassette the first time and never re-records if the cassette directory already exists. You should see output like:
+The `once` mode records a cassette the first time and never re-records if the cassette already has interactions. You should see output like:
 
 ```
 collected 1 item

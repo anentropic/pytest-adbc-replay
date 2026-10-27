@@ -27,7 +27,7 @@ With auto-patching enabled, the connection returned by the driver's `connect()` 
 
 ## Create a pool fixture
 
-Set up the pool in a session-scoped fixture and expose individual connections as function-scoped fixtures:
+Create the pool in a function-scoped fixture, so each test's pool connects inside that test. The plugin fixes a connection's cassette, and its record/replay state, when the source connection is created:
 
 ```python
 # conftest.py
@@ -35,7 +35,7 @@ import pytest
 from adbc_poolhouse import DuckDBConfig, create_pool, close_pool
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def pool():
     p = create_pool(DuckDBConfig(database="/tmp/test.db"))
     yield p
@@ -50,6 +50,9 @@ def db_conn(pool):
 ```
 
 `pool.connect()` calls `adbc_clone()` internally, so each checkout connection is a `ReplayConnection` sharing the same cassette.
+
+!!! note
+    A session- or module-scoped pool connects once, during the first test that uses it. Every later test then records into, and replays from, that first test's cassette, with one shared `once` decision and replay queue. Use a function-scoped pool unless your tests are meant to share one cassette.
 
 ## Write a test
 
@@ -69,31 +72,31 @@ def test_pool_query(db_conn):
 
 ## Explicit wrap() approach
 
-If you prefer not to use auto-patching, wrap the source connection manually before creating the pool:
+If you prefer not to use auto-patching, open the source connection with the `adbc_connect` fixture and build the pool on its `adbc_clone()`. This example uses SQLAlchemy's `QueuePool` directly:
 
 ```python
 # conftest.py
 import pytest
-import adbc_driver_duckdb.dbapi as duckdb
-from adbc_poolhouse import DuckDBConfig, create_pool, close_pool
+from sqlalchemy.pool import QueuePool
 
 
-@pytest.fixture(scope="session")
-def pool(adbc_replay):
-    source = duckdb.connect(database="/tmp/test.db")
-    wrapped = adbc_replay.wrap(source)
-    p = create_pool(DuckDBConfig(database="/tmp/test.db"), source=wrapped)
+@pytest.fixture
+def pool(adbc_connect):
+    source = adbc_connect("adbc_driver_duckdb.dbapi", path="/tmp/test.db")
+    p = QueuePool(source.adbc_clone, pool_size=5)
     yield p
-    close_pool(p)
+    p.dispose()
 ```
 
-The pool then calls `adbc_clone()` on the wrapped `ReplayConnection`, and all checkouts share the same cassette.
+The pool calls `adbc_clone()` on the `ReplayConnection` for each new connection, and all checkouts share the test's cassette. The `adbc_connect` fixture closes the source connection when the test ends.
+
+Record the cassette with `--adbc-record=once` as usual. Every query the test runs is recorded, whichever pool connection runs it, and replay hands each connection the results in the order they were recorded.
 
 !!! warning
-    Cloned connections must be used sequentially. In typical single-threaded pytest runs, this is not a concern. Sequential access is only a limitation when testing multi-threaded server code with concurrent pool connections. See the [explanation article](../explanation/connection-pooling.md) for details on the failure mode.
+    If several threads run the *same* query at the same time and its recorded results differ, which thread receives which result depends on thread scheduling. Different queries are always matched correctly. See the [explanation article](../explanation/connection-pooling.md) for details.
 
 ## Related
 
 - [Connection pooling reference](../reference/connection-pooling.md) -- `adbc_clone()` method spec and shared cassette semantics
-- [Connection pooling and replay](../explanation/connection-pooling.md) -- design rationale and concurrent-access failure mode
+- [Connection pooling and replay](../explanation/connection-pooling.md) -- design rationale and shared cassette state
 - [Run in CI without credentials](ci-without-credentials.md) -- replay cassettes in CI
